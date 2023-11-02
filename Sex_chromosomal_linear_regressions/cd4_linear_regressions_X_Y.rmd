@@ -34,7 +34,7 @@ Y_genes_all <- c(Y_genes_all, "PRKY", "TXLNGY")
 myCell <- "CD4"
 
 #read in the metadata table
-metadata <-read.delim(paste0(myPath,"210326.bulk_rnaseq_CD4_metadata_for_model.txt"), stringsAsFactors = FALSE)
+metadata <-read.delim(paste0(myPath,"CD4_metadata.txt"), stringsAsFactors = FALSE)
 #subtract 1 from X count to model number of additional X chromosomes
 metadata$X_count <- metadata$X_count - 1
 
