@@ -1,0 +1,543 @@
+---
+title: "Modeling X and Y chromosome expression"
+output: html_notebook
+---
+
+## Setup
+```{r}
+myPath <- #add path to github folder
+suppressPackageStartupMessages(library("limma"))
+suppressPackageStartupMessages(library("rlist"))
+suppressPackageStartupMessages(library("broom"))
+suppressPackageStartupMessages(library(ggplot2))
+
+
+#Set up sex chromosome gene lists, using gencode v84 as "Gene" list
+geneAnno <- read.delim(file= paste0(myPath,"geneAnno_proteinCoding_lncRNA_v107_20221021.txt"), stringsAsFactors = FALSE)[,c(2,1,3:6,8,14,9)]
+colnames(geneAnno)[c(1,4,5,6)] <- c("Gene","chr","start","stop")
+geneAnno <- geneAnno[! duplicated(geneAnno$gene_name.107) & ! geneAnno$gene_name.107 %in% c("") & ! duplicated(geneAnno$Gene),]
+
+geneAnno_x <- geneAnno[geneAnno$chr == "chrX",]
+geneAnno_y <- geneAnno[geneAnno$chr == "chrY",]
+X_genes_all <-as.character(geneAnno_x$Gene)
+Y_genes_all <-as.character(geneAnno_y$Gene)
+sexChrom_genes <- c(X_genes_all,Y_genes_all)
+PAR1_genes <- geneAnno_x[geneAnno_x$start < 2691188,]$Gene
+PAR2_genes <- c("SPRY3","VAMP7","IL9R","WASH6P")
+PAR_genes_all <- c(PAR1_genes,PAR2_genes)
+NPX_genes <- X_genes_all[! X_genes_all %in% PAR_genes_all]
+NPY_genes <- Y_genes_all[! Y_genes_all %in% PAR_genes_all]
+autosome_genes <- geneAnno[! geneAnno$chr %in% c("chrX","chrY"),"Gene"]
+
+Y_genes_all <- c(Y_genes_all, "PRKY", "TXLNGY")
+
+#which cell type to analyze?
+myCell <- "mono"
+
+#read in the metadata table
+metadata <-read.delim(paste0(myPath,"monocyte_metadata.txt"), stringsAsFactors = FALSE)
+#subtract 1 from X count to model number of additional X chromosomes
+metadata$X_count <- metadata$X_count - 1
+
+#restrict to cell type and karyotype
+metadata_myCell <- metadata[metadata$Karyotype %in% c("45X","46XX","47XXX","47XXY","46XY","47XYY") & metadata$Cell_type == myCell,]
+metadata_myCell <- metadata_myCell[!(metadata_myCell$Kallisto_directory %in% c("P36.mono", "P43.mono","P49.mono","C1.mono", "C2.mono", "P39.mono", "C22.mono")),]
+rownames(metadata_myCell) <- metadata_myCell$SampleID
+
+#restrict to male samples only for NPY analysis
+metadata_myCell_male <- metadata_myCell[metadata_myCell$Karyotype %in% c("47XXY","46XY","47XYY"),]
+rownames(metadata_myCell_male) <- metadata_myCell_male$SampleID
+
+#subtract 1 from Y count to model number of additional Y chromosomes
+metadata_myCell_male$Y_count <- metadata_myCell_male$Y_count - 1
+```
+
+#Functions
+```{r}
+myOrange <- "#d95f02"
+myOrange_light <- "#d95f0220"
+myPurple <- "#7570B3"
+myPurple_light <- "#7570B320"
+
+## set FunctionsPath to the location of R functions, found in https://github.com/lvblanton/sca-immune/tree/main/Rfunctions
+source(paste0(FunctionsPath,"/Function_ggGenePlot_regLine_xcount.R"))
+source(paste0(FunctionsPath,"/Function_ggGenePlot_regLine_xcount_min_max.R"))
+source(paste0(FunctionsPath,"/Function_ggGenePlot_regLine_xcount_XIST.R"))
+source(paste0(FunctionsPath,"/Function_ggGenePlot_regLine_ycount.R"))
+source(paste0(FunctionsPath,"/Function_ggGenePlot_regLine_ycount_max_min_NoZero.R"))
+source(paste0(FunctionsPath,"/Function_ggGenePlot_regLine_ycount_PAR.R"))
+```
+
+#Processing raw RNA-seq data
+```{r, eval=FALSE}
+### The following code is used to run this analysis from the raw data. Skip below to begin with provided processed data file. ###
+## You must obtain access to the raw data through dbGaP (accession # phs002481). Download the fastq files, and run kallisto using the following command:
+# kallisto quant -i KALLISTO_INDEX_FILE -t 16 --bias --plaintext -o  /kallisto_OUTPUT_FOLDER/sampleName/ file1fastq.gz file2fastq.gz 
+
+#Bring in list of Kallisto output files
+# myFileTable <- read.table(file =  "PATH TO LIST OF FILES", row.names = 1, stringsAsFactors = FALSE)
+myFiles <- myFileTable$V2
+names(myFiles) <- rownames(myFileTable)
+#subset file list for the samples I will use in this analysis
+myFiles_myCell <- myFiles[metadata_myCell$SampleID]
+myFiles_myCell_male <- myFiles[metadata_myCell_male$SampleID]
+
+#run tximport to bring in mapped samples
+suppressPackageStartupMessages(library("tximport"))
+
+annofile <-read.delim(file="/lab/solexa_page/laura/annotations/annotation_with_ERCC.txt" ,sep = " ")
+tx2gene <-data.frame("TXNAME" = annofile$transcript_id,"GENEID" = annofile$gene_name)
+
+txi_myCell <- tximport(myFiles_myCell, type = "kallisto", tx2gene = tx2gene)
+txi_myCell_male <- tximport(myFiles_myCell_male, type = "kallisto", tx2gene = tx2gene)
+
+#Adjust sample tables to match list of samples in txi
+sample_table_par_npx <- metadata_myCell[colnames(txi_myCell$counts), c("X_count","Y_count","GTC_Run_ID")]
+write.table(sample_table_par_npx, file="sample_table_par_npx.txt", quote=FALSE, row.names=TRUE, col.names = TRUE, sep="\t")
+sample_table_npy <- metadata_myCell_male[colnames(txi_myCell_male$counts), c("X_count","Y_count","GTC_Run_ID")]
+write.table(sample_table_npy, file="sample_table_npy.txt", quote=FALSE, row.names=TRUE, col.names = TRUE, sep="\t")
+
+#use scientific notation
+options(scipen = 0, digits = 5)
+
+#For PAR and NPX:
+#make sure x_count and y_count are numeric, and GTC_Run_ID as a factor
+class(sample_table_par_npx$X_count)
+sample_table_par_npx$Y_count <- as.numeric(sample_table_par_npx$Y_count)
+class(sample_table_par_npx$Y_count)
+sample_table_par_npx$GTC_Run_ID <- as.factor(sample_table_par_npx$GTC_Run_ID)
+class(sample_table_par_npx$GTC_Run_ID)
+
+#Get list of expressed genes in the cell type of interest:
+XX_sample_names <- metadata_myCell[metadata_myCell$Karyotype == "46XX", "SampleID"]
+XY_sample_names <- metadata_myCell[metadata_myCell$Karyotype == "46XY", "SampleID"]
+tpm1_genes_xx_xy_median <- function(tximport_file, XX_samples, XY_samples) {
+  kallisto_output_TPM_XY <- tximport_file$abundance[,c(XY_samples)]
+  kallisto_output_TPM_XX <- tximport_file$abundance[,c(XX_samples)]
+  median_TPM_XY <- apply(kallisto_output_TPM_XY,1,median)
+  median_TPM_XX <- apply(kallisto_output_TPM_XX,1,median)
+  #Put all of the medians together in a dataframe of expression per karyotype - numeric
+  expression_perKaryotype <- data.frame(median_TPM_XY, median_TPM_XX)
+  #Isolate the rows of the expression_TPM dataset that have at least one karyotype passing the threshold
+  expressedGenes <- expression_perKaryotype[expression_perKaryotype$median_TPM_XY >= 1 | expression_perKaryotype$median_TPM_XX >= 1,]
+  #Restrict by gene annotation file
+  expressedGenes <- expressedGenes[rownames(expressedGenes) %in% c(geneAnno$Gene, "PRKY", "TXLNGY"),]
+  #See how many genes are expressed in at least one karyotype
+  num_expressedGenes <- dim(expressedGenes)[1]
+  print(paste("Number of 'expressed' genes with median TPM >= 1 in either XX or XY samples: ", as.character(num_expressedGenes), sep=""))
+
+  #Find expressed sex chromosome genes
+  expSexChromGenes <- expressedGenes[rownames(expressedGenes) %in% sexChrom_genes,]
+  print(paste("Number of 'expressed' sex chromosome genes: ", as.character(dim(expSexChromGenes)[1]), sep=""))
+
+  #Find expressed Y chromosome genes
+  expYGenes <- expressedGenes[rownames(expressedGenes) %in% Y_genes_all,]
+  print(paste("Number of 'expressed' Y chromosome genes: ", as.character(dim(expYGenes)[1]), sep=""))
+
+  #Find expressed X chromosome genes
+  expXGenes <- expressedGenes[rownames(expressedGenes) %in% X_genes_all,]
+  print(paste("Number of 'expressed' X chromosome genes: ", as.character(dim(expXGenes)[1]), sep=""))
+
+  #Find expressed PAR genes
+  expPARGenes <- expressedGenes[rownames(expressedGenes) %in% PAR_genes_all,]
+  print(paste("Number of 'expressed' PAR genes (small set): ", as.character(dim(expPARGenes)[1]), sep=""))
+
+  #Find expressed autosome genes
+  expAutoGenes <- expressedGenes[rownames(expressedGenes) %in% autosome_genes,]
+  print(paste("Number of 'expressed' autosome genes: ", as.character(dim(expAutoGenes)[1]), sep=""))
+
+  myList <- list("expressedGenes" = rownames(expressedGenes), "expSexChromGenes" = rownames(expSexChromGenes),
+                 "expYGenes" = rownames(expYGenes), "expXGenes" = rownames(expXGenes), "expPARGenes" = rownames(expPARGenes),
+                 "expAutoGenes" = rownames(expAutoGenes))
+
+  return(myList)
+}
+
+mono_expressed <- tpm1_genes_xx_xy_median(tximport_file = txi_myCell,XX_samples = XX_sample_names, XY_samples = XY_sample_names )
+save(mono_expressed, file="mono_expressed.rda")
+
+# Bring in list of expressed genes in the cell type of interest
+load(file=paste0(myPath,"/mono_expressed.rda"))
+myCell_expressed <- mono_expressed
+
+#run deseq to get the normalized counts matrix across all samples.
+suppressPackageStartupMessages(library("DESeq2"))
+
+dds_myCell_par_npx <- DESeqDataSetFromTximport(txi = txi_myCell, colData = sample_table_par_npx,
+                                            design = ~ X_count + Y_count + GTC_Run_ID)
+dds_myCell_par_npx <- estimateSizeFactors(dds_myCell_par_npx)
+normCounts <- counts(dds_myCell_par_npx, normalized=TRUE)
+
+#get normalized counts for expressed X genes
+normCounts_expXgenes <- normCounts[rownames(normCounts) %in% myCell_expressed$expXGenes,]
+write.table(x=normCounts_expXgenes, file=paste0(myCell,"_normCounts_expXgenes.txt"), quote=FALSE, sep="\t", row.names=TRUE, col.names = TRUE)
+
+
+#get normalized counts for expressed Y genes
+sample_table_npy_all <- metadata_myCell[colnames(txi_myCell$counts), c("X_count","Y_count","GTC_Run_ID")]
+normCounts_expYgenes_all <- normCounts[rownames(normCounts) %in% myCell_expressed$expYGenes,colnames(normCounts) %in% rownames(sample_table_npy_all)]
+write.table(x=normCounts_expYgenes_all, file = paste0(myCell,"_normCounts_expYgenes_all.txt"), quote=FALSE, sep="\t", row.names=TRUE, col.names = TRUE)
+
+sample_table_npy_male <- metadata_myCell_male[colnames(txi_myCell_male$counts), c("X_count","Y_count","GTC_Run_ID")]
+normCounts_expYgenes_male <- normCounts[rownames(normCounts) %in% myCell_expressed$expYGenes,colnames(normCounts) %in% rownames(sample_table_npy_male)]
+write.table(x=normCounts_expYgenes_male, file = paste0(myCell,"_normCounts_expYgenes_male.txt"), quote=FALSE, sep="\t", row.names=TRUE, col.names = TRUE)
+```
+
+
+#Run linear regressions for X chromosome genes
+```{r}
+## START HERE WITH PROCESSED NORMALIZED COUNTS DATA
+normCounts_expXgenes <- as.matrix(read.delim(file=paste0(myPath,"/mono_normCounts_expXgenes.txt"), stringsAsFactors = FALSE, check.names = FALSE))
+
+exp_NPX_genes <- intersect(rownames(normCounts_expXgenes),NPX_genes)
+exp_PAR1_genes <- intersect(rownames(normCounts_expXgenes), PAR1_genes)
+exp_PAR2_genes <- intersect(rownames(normCounts_expXgenes), PAR2_genes)
+
+#plot example genes
+example_genes <- c("PRPS2","KDM5C","ZFX","F8", "KDM5C","JPX","KDM6A","PNPLA4","PUDP",
+                   "XIST","EIF1AX","AKAP17A","ZBED1","ZRSR2",
+                   "SMC1A","GTPBP6","ZFX","RPS4X","SLC25A6", "TLR7","TL8", "CD40LG")
+
+
+#Adjust sample tables to match list of samples in txi
+sample_table_par_npx <- metadata_myCell[colnames(normCounts_expXgenes), c("X_count","Y_count","GTC_Run_ID")]
+
+myResults_par_npx <- data.frame(intercept=numeric(),intErr = numeric(),xbeta=numeric(), xpval = numeric(), xErr = numeric(),ybeta=numeric(), ypval=numeric(),yErr=numeric(), adj_rsq=numeric(), pval=numeric())
+region_res <- character()
+for(gene in rownames(normCounts_expXgenes)){
+options(scipen = 0, digits = 3) 
+    #pull out data
+    myGeneData <- normCounts_expXgenes[gene,]
+    all_Data <- cbind(sample_table_par_npx, myGeneData)
+    colnames(all_Data) <- c("X_count", "Y_count", "GTC_Run_ID", "gene_expression")
+    #do a linear regression
+    myFormula <- formula(gene_expression ~ X_count + Y_count + GTC_Run_ID)
+    myFormula_int <- formula(gene_expression ~ X_count + Y_count )
+    mylm <- lm(myFormula, data=all_Data)
+    mylm_int <- lm(myFormula_int, data=all_Data)
+    #pull out intercept, betas, p-values and add to table
+    intercept <- summary(mylm_int)$coefficients["(Intercept)",1]
+    interr <- summary(mylm_int)$coefficients["(Intercept)",2]
+    xbeta <- summary(mylm)$coefficients["X_count",1]
+    xpval <- summary(mylm)$coefficients["X_count",4]
+    xerr <- summary(mylm)$coefficients["X_count",2]
+    ybeta <- summary(mylm)$coefficients["Y_count",1]
+    ypval <- summary(mylm)$coefficients["Y_count",4]
+    yerr <- summary(mylm)$coefficients["Y_count",2]
+    adj_rsq <- glance(mylm)$adj.r.squared
+    pval <- glance(mylm)$p.value
+  
+    #label genes with regions  
+  if(gene %in% exp_NPX_genes){
+      region <- "NPX"
+    }
+    if(gene %in% exp_PAR1_genes){
+      region <- "PAR1"
+    }
+    if(gene %in% exp_PAR2_genes){
+      region <- "PAR2"
+    }
+  #build results into table  
+  myResults_par_npx[gene,] <- c(intercept,interr,xbeta, xpval, xerr,ybeta, ypval, yerr, adj_rsq,pval)
+  region_res <- c(region_res, region)
+  
+  #if gene in example list
+  if(gene %in% example_genes){
+    print(gene)
+      ggGenePlot_regLine_xcount(Gene = gene, all_data = all_Data,normBy = 1000, prefix = myCell)
+  }
+  if(gene %in% PAR1_genes){
+    print(gene)
+      ggGenePlot_regLine_ycount_PAR(Gene = gene, all_data = all_Data,normBy = 1000, prefix = myCell)
+  }
+}
+
+myResults_par_npx <- cbind(myResults_par_npx,region_res)
+
+
+#correct for multiple hypothesis testing and set signficance threshold to padj < 0.05
+bh_adj <- p.adjust(myResults_par_npx$xpval, method="BH")
+bh_adj_y <- p.adjust(myResults_par_npx$ypval, method="BH")
+bh_adj_reg <- p.adjust(myResults_par_npx$pval, method="BH")
+deltaEx <- myResults_par_npx$xbeta/myResults_par_npx$intercept
+deltaEx_err <- sqrt(
+  ((myResults_par_npx$xbeta ^ 2)/(myResults_par_npx$intercept ^ 2)) * 
+  (
+    ((myResults_par_npx$xErr ^ 2)/(myResults_par_npx$xbeta ^ 2)) + 
+      ((myResults_par_npx$intErr ^ 2)/(myResults_par_npx$intercept ^ 2))
+    )
+  )
+deltaEx_95_CI_lo <- deltaEx - (1.96 * deltaEx_err)
+deltaEx_95_CI_hi <- deltaEx + (1.96 * deltaEx_err)
+
+deltaEy <- myResults_par_npx$ybeta/myResults_par_npx$intercept
+deltaEy_err <- sqrt(
+  ((myResults_par_npx$ybeta ^ 2)/(myResults_par_npx$intercept ^ 2)) * 
+  (
+    ((myResults_par_npx$yErr ^ 2)/(myResults_par_npx$ybeta ^ 2)) + 
+      ((myResults_par_npx$intErr ^ 2)/(myResults_par_npx$intercept ^ 2))
+    )
+  )
+deltaEy_95_CI_lo <- deltaEy - (1.96 * deltaEy_err)
+deltaEy_95_CI_hi <- deltaEy + (1.96 * deltaEy_err)
+
+#put together final table
+myResults_npx_par_deltaEx_y <- data.frame(row.names= rownames(myResults_par_npx),
+                          "gene"= rownames(myResults_par_npx),
+                          "intercept" = myResults_par_npx$intercept,
+                          "intercept_err" = myResults_par_npx$intErr,
+                          "x_coeff" = myResults_par_npx$xbeta,
+                          "x_coeff_err" = myResults_par_npx$xErr,
+                          "x_pval" = myResults_par_npx$xpval,
+                          "x_adj_pval" = bh_adj,
+                          "y_coeff" = myResults_par_npx$ybeta,
+                          "y_coeff_err" = myResults_par_npx$yErr,
+                          "y_pval" = myResults_par_npx$ypval,
+                          "y_adj_pval" = bh_adj_y,
+                          "adj.r.sq" = myResults_par_npx$adj_rsq,
+                          "reg_pval" = myResults_par_npx$pval,
+                          "reg_adj_pval" = bh_adj_reg,
+                          "deltaEx" = deltaEx,
+                          "deltaEx_err" = deltaEx_err,
+                          "deltaEx_95_CI_lo"= deltaEx_95_CI_lo,
+                          "deltaEx_95_CI_hi"= deltaEx_95_CI_hi,
+                          "deltaEy" = deltaEy,
+                          "deltaEy_err" = deltaEy_err,
+                          "deltaEy_95_CI_lo"= deltaEy_95_CI_lo,
+                          "deltaEy_95_CI_hi"= deltaEy_95_CI_hi,
+                          "region" = myResults_par_npx$region_res
+                          )
+
+#adjust for XIST:
+XIST_int <- myResults_par_npx["XIST","xbeta"] + myResults_par_npx["XIST","intercept"]
+deltaEx_XIST <- myResults_par_npx["XIST","xbeta"]/XIST_int
+deltaEy_XIST <- myResults_par_npx["XIST","ybeta"]/XIST_int
+
+deltaEx_err_XIST <- sqrt(
+  ((myResults_par_npx["XIST","xbeta"] ^ 2)/(XIST_int ^ 2)) * 
+  (
+    ((myResults_par_npx["XIST","xErr"] ^ 2)/(myResults_par_npx["XIST","xbeta"] ^ 2)) + 
+      (((myResults_par_npx["XIST","intErr"] ^ 2) + (myResults_par_npx["XIST","xErr"] ^ 2))/(XIST_int ^ 2))
+    )
+  )
+
+deltaEx_95_CI_lo_xist <- deltaEx_XIST - (1.96 * deltaEx_err_XIST)
+deltaEx_95_CI_hi_xist <- deltaEx_XIST + (1.96 * deltaEx_err_XIST)
+
+
+deltaEy_err_XIST <- sqrt(
+  ((myResults_par_npx["XIST","ybeta"] ^ 2)/(XIST_int ^ 2)) * 
+  (
+    ((myResults_par_npx["XIST","yErr"] ^ 2)/(myResults_par_npx["XIST","ybeta"] ^ 2)) + 
+      (((myResults_par_npx["XIST","intErr"] ^2) + (myResults_par_npx["XIST","yErr"] ^ 2 ))/(XIST_int ^ 2))
+    )
+  )
+
+deltaEy_95_CI_lo_xist <- deltaEy_XIST - (1.96 * deltaEy_err_XIST)
+deltaEy_95_CI_hi_xist <- deltaEy_XIST + (1.96 * deltaEy_err_XIST)
+
+
+
+myResults_npx_par_deltaEx_y["XIST",c("deltaEx","deltaEx_err","deltaEx_95_CI_lo","deltaEx_95_CI_hi","deltaEy","deltaEy_err",
+                                     "deltaEy_95_CI_lo","deltaEy_95_CI_hi")] <- c("deltaEx" = deltaEx_XIST, 
+                                                                                  "deltaEx_err" = deltaEx_err_XIST, 
+                                                                                  "deltaEx_95_CI_lo" = deltaEx_95_CI_lo_xist,
+                                                                                  "deltaEx_95_CI_hi" = deltaEx_95_CI_hi_xist,
+                                                                                  "deltaEy" = deltaEy_XIST,
+                                                                                  "deltaEy_err" = deltaEy_err_XIST,
+                                                                                  "deltaEy_95_CI_lo" = deltaEy_95_CI_lo_xist,
+                                                                                  "deltaEy_95_CI_hi" = deltaEy_95_CI_hi_xist)
+
+
+write.table(x = myResults_npx_par_deltaEx_y, file = paste0(myCell,"_regression_results_npx_par.txt"), quote = FALSE, sep = "\t", row.names = FALSE)
+```
+
+## Linear regressions for NPY genes
+```{r}
+## START HERE WITH PROCESSED NORMALIZED COUNTS DATA
+#Example with LCLs
+normCounts_expYgenes <- as.matrix(read.delim(file=paste0(myPath,"/mono_normCounts_expYgenes_male.txt"), stringsAsFactors = FALSE, check.names = FALSE))
+normCounts_expYgenes_all <- as.matrix(read.delim(file=paste0(myPath,"/mono_normCounts_expYgenes_all.txt"), stringsAsFactors = FALSE, check.names = FALSE))
+# normCounts_expYgenes <- read.delim(file=paste0(myPath,"Linear_regressions/Fibroblasts/Fib_normCounts_expYgenes_male.txt"), stringsAsFactors = FALSE, check.names = FALSE)
+# normCounts_expYgenes_all <- read.delim(file=paste0(myPath,"Linear_regressions/Fibroblasts/Fib_normCounts_expYgenes_all.txt"), stringsAsFactors = FALSE, check.names = FALSE)
+
+sample_table_npy <- metadata_myCell_male[colnames(normCounts_expYgenes), c("X_count","Y_count","GTC_Run_ID")]
+sample_table_npy_all <- metadata_myCell[colnames(normCounts_expYgenes_all), c("X_count","Y_count","GTC_Run_ID")]
+
+#plot example genes
+special <- c(NPY_genes)
+
+myResults_npy <- data.frame(intercept=numeric(),intErr = numeric(),xbeta=numeric(), xpval = numeric(), xErr = numeric(),ybeta=numeric(), ypval=numeric(),yErr=numeric(), adj_rsq=numeric() , pval=numeric())
+for(gene in rownames(normCounts_expYgenes)){
+    options(scipen = 0, digits = 5) 
+    #pull out data
+    myGeneData <- normCounts_expYgenes[gene,]
+    male_Data <- cbind(sample_table_npy, myGeneData)
+    colnames(male_Data) <- c("X_count", "Y_count", "GTC_Run_ID", "gene_expression")
+    #do a linear regression
+    myFormula <- formula(gene_expression ~ X_count + Y_count + GTC_Run_ID)
+    myFormula_int <- formula(gene_expression ~ X_count + Y_count)
+    mylm <- lm(myFormula, data=male_Data)
+    mylm_int <- lm(myFormula_int, data=male_Data)
+    #pull out intercepts, betas, p-values and add to table
+    intercept <- summary(mylm_int)$coefficients["(Intercept)",1]
+    interr <- summary(mylm_int)$coefficients["(Intercept)",2]
+    xbeta <- summary(mylm)$coefficients["X_count",1]
+    xpval <- summary(mylm)$coefficients["X_count",4]
+    xerr <- summary(mylm)$coefficients["X_count",2]
+    ybeta <- summary(mylm)$coefficients["Y_count",1]
+    ypval <- summary(mylm)$coefficients["Y_count",4]
+    yerr <- summary(mylm)$coefficients["Y_count",2]
+    adj_rsq <- glance(mylm)$adj.r.squared
+    pval <- glance(mylm)$p.value
+    
+  myResults_npy[gene,] <- c(intercept,interr,xbeta, xpval, xerr,ybeta, ypval, yerr, adj_rsq , pval)
+  
+#  if gene in special list
+  if(gene %in% special){
+    print(gene)
+    #also bring in Y gene data for all samples
+     myGeneData_all <- normCounts_expYgenes_all[gene,]
+    all_Data <- cbind(sample_table_npy_all, myGeneData_all)
+    colnames(all_Data) <- c("X_count", "Y_count", "GTC_Run_ID", "gene_expression")
+      ggGenePlot_regLine_ycount(Gene = gene, male_data = male_Data, all_data = all_Data, normBy = 1000, prefix = myCell)
+  }
+  
+  #If you need to adjust the axis limits, use this:
+  # if(gene == "DDX3Y"){
+  #   print(gene)
+  #   myGeneData_all <- t(normCounts_expYgenes_all[gene,])
+  #   all_Data <- cbind(sample_table_npy_all, myGeneData_all)
+  #   colnames(all_Data) <- c("x_count", "y_count", "batch_libprep", "gene_expression")
+  #   ggGenePlot_regLine_ycount_max_min(Gene = gene, male_data = male_Data, all_data = all_Data, normBy = 1000, prefix = myCell, myMax = 40)
+  # }
+  
+}
+
+
+#correct for multiple hypothesis testing and set signficance threshold to padj < 0.05
+options(scipen = 0) 
+bh_adj <- p.adjust(myResults_npy$xpval, method="BH")
+bh_adj_y <- p.adjust(myResults_npy$ypval, method="BH")
+bh_adj_reg <- p.adjust(myResults_npy$pval, method="BH")
+deltaEx <- myResults_npy$xbeta/myResults_npy$intercept
+deltaEx_err <- sqrt(((myResults_npy$xbeta ^ 2)/(myResults_npy$intercept ^ 2)) * 
+  (((myResults_npy$xErr ^ 2)/(myResults_npy$xbeta ^ 2)) + ((myResults_npy$intErr ^ 2)/(myResults_npy$intercept ^ 2))))
+deltaEx_95_CI_lo <- deltaEx - (1.96 * deltaEx_err)
+deltaEx_95_CI_hi <- deltaEx + (1.96 * deltaEx_err)
+
+deltaEy <- myResults_npy$ybeta/myResults_npy$intercept
+deltaEy_err <- sqrt(((myResults_npy$ybeta ^ 2)/(myResults_npy$intercept ^ 2)) * 
+  (((myResults_npy$yErr ^ 2)/(myResults_npy$ybeta ^ 2)) + ((myResults_npy$intErr ^ 2)/(myResults_npy$intercept ^ 2))))
+deltaEy_95_CI_lo <- deltaEy - (1.96 * deltaEy_err)
+deltaEy_95_CI_hi <- deltaEy + (1.96 * deltaEy_err)
+
+#put together final table
+myResults_npy_deltaEx_y <- data.frame(row.names= rownames(myResults_npy),
+                          "gene" = rownames(myResults_npy),
+                          "intercept" = myResults_npy$intercept,
+                          "intercept_err" = myResults_npy$intErr,
+                          "x_coeff" = myResults_npy$xbeta,
+                          "x_coeff_err" = myResults_npy$xErr,
+                          "x_pval" = myResults_npy$xpval,
+                          "x_adj_pval" = bh_adj,
+                          "y_coeff" = myResults_npy$ybeta,
+                          "y_coeff_err" = myResults_npy$yErr,
+                          "y_pval" = myResults_npy$ypval,
+                          "y_adj_pval" = bh_adj_y,
+                          "adj.r.sq" = myResults_npy$adj_rsq,
+                          "reg_pval" = myResults_npy$pval,
+                          "reg_adj_pval" = bh_adj_reg,
+                          "deltaEx" = deltaEx,
+                          "deltaEx_err" = deltaEx_err,
+                          "deltaEx_95_CI_lo"= deltaEx_95_CI_lo,
+                          "deltaEx_95_CI_hi"= deltaEx_95_CI_hi,
+                          "deltaEy" = deltaEy,
+                          "deltaEy_err" = deltaEy_err,
+                          "deltaEy_95_CI_lo"= deltaEy_95_CI_lo,
+                          "deltaEy_95_CI_hi"= deltaEy_95_CI_hi
+                          )
+
+write.table(x = myResults_npy_deltaEx_y, file = paste0(myCell,"_regression_results_npy.txt"), quote = FALSE, sep = "\t", row.names = FALSE)
+```
+
+#Plots
+```{r}
+myResults_npx_par_deltaEx_y <- read.delim(file=paste0(myPath,"/mono_regression_results_npx_par.txt", header = T, sep = "\t"))
+myResults_npy_deltaEx_y <- read.delim(file=paste0(myPath,"/mono_regression_results_npy.txt", header = T, sep = "\t"))
+
+myResults_npx_par_deltaEx_y$annotation = "NPX"
+myResults_npx_par_deltaEx_y$annotation[myResults_npx_par_deltaEx_y$gene %in% c("KDM5C", "USP9X", "KDM6A", "ZFX","EIF1AX","DDX3X","RPS4X","PRKX", "TXLNG", "NLGN4X", "TMSB4X")] <- "NPX, with Y homolog"
+myResults_npx_par_deltaEx_y$annotation[myResults_npx_par_deltaEx_y$gene %in% PAR1_genes] <- "PAR"
+
+###NPX, PAR results
+library(ggplot2)
+library(ggpubr)
+deltaEx.padj.plot <- ggplot(myResults_npx_par_deltaEx_y, aes(x=deltaEx, y=-log10(x_adj_pval), color=annotation)) +
+  geom_point(shape = 16, size = 2) +
+  geom_text_repel(data = myResults_npx_par_deltaEx_y, aes(label = gene),size = 3, fontface = "italic") +
+  scale_color_manual(values=c('#EC7063','#28B463', '#2E86C1'))+
+  labs(title="Monocytes delta Ex vs. adjusted p-value", x="delta Ex", y = "-log10(p-adj)") +
+  geom_hline(yintercept=0, linetype = "solid") +
+  geom_hline(yintercept=1.29E+00, linetype = "dotted") +
+  geom_vline(xintercept=0, linetype = "solid") +
+  xlim(-0.3, 1.5)+
+  ylim(NA, 14)+
+  theme_classic()
+deltaEx.padj.plot
+
+ggsave("mono_deltaEx_vs_padj.pdf",deltaEx.padj.plot, width=6.5, height=3, units="in", scale=1)
+
+
+###NPY results
+deltaEy.padj.plot <- ggplot(myResults_npy_deltaEx_y, aes(x=deltaEy, y=-log10(y_adj_pval))) +
+  geom_point(shape = 16, size = 2) +
+  geom_text_repel(aes(label = gene, fontface = "italic"),size = 3, max.overlaps = 15) +
+  geom_hline(yintercept=0, linetype = "dotted") +
+  geom_vline(xintercept=0, linetype = "dotted") +
+  labs(title="Monocytes delta Ey vs. adjusted p-value", x="delta Ey", y = "-log10(p-adj)") +
+  geom_hline(yintercept=0, linetype = "solid") +
+  geom_hline(yintercept=1.29E+00, linetype = "dotted") +
+  geom_vline(xintercept=0, linetype = "solid") +
+  theme_classic()
+deltaEy.padj.plot
+
+ggsave("mono_deltaEy_vs_padj.pdf",deltaEy.padj.plot, width=4.75, height=3, units="in", scale=1)
+
+par <- myResults_npx_par_deltaEx_y[myResults_npx_par_deltaEx_y$annotation == "PAR",]
+myResults_npy_deltaEx_y$region <- "NPY"
+myResults_npy_deltaEx_y$annotation <- "NPY"
+npy.par <- rbind(myResults_npy_deltaEx_y, par)
+
+### delta Ex vs. delta Ey: NPX, PAR genes
+deltaEx.v.deltaEy <- ggplot(myResults_npx_par_deltaEx_y, aes(x=deltaEx, y=deltaEy, color=annotation)) +
+  geom_point(shape = 16, size = 2) +
+  stat_cor(method = "pearson", show.legend = FALSE) +
+  scale_color_manual(values=c('#EC7063','#28B463', '#2E86C1'))+
+  labs(title="Monocytes delta Ex vs. deltaEy", x="delta Ex", y = "deltaEy") +
+  geom_hline(yintercept=0, linetype = "solid") +
+  geom_vline(xintercept=0, linetype = "solid") +
+  ylim(NA, 1.5) +
+  xlim(NA, 1.5) +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed") +
+  theme_classic()
+deltaEx.v.deltaEy
+ggsave(paste0(myPath,"mono_deltaEx_v_deltaEy_PAR.NPX.pdf"),deltaEx.v.deltaEy, width=6, height=4, units="in", scale=1)
+
+pdf(paste0(myPath,"mono_deltaEx_distribution_by_gene_class.pdf"), width = 5, height = 3)
+ggplot(myResults_npx_par_deltaEx_y, aes(x=deltaEx, color=annotation, fill=annotation)) +
+  geom_density(alpha=0.4)+
+  scale_color_manual(values=c('#EC7063','#28B463', '#2E86C1'))+
+  labs(title="Monocytes: Distribution of dEx values",x="dEx", y = "Frequency")+
+  theme_classic()
+dev.off()
+
+
+```
+
+
+```{r}
+sessionInfo()
+```
+
+
