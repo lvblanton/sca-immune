@@ -1,0 +1,118 @@
+---
+title: "Human CD4+ gene set enrichment analysis (GSEA)"
+author: "Laura Blanton"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache=TRUE)
+knitr::opts_knit$set(root.dir = "") #set root directory
+```
+
+####Load data
+```{r}
+library(dplyr)
+library(fgsea)
+library(data.table)
+library(ggplot2)
+myPath <- #set path here
+
+#Load autosomal gene responses to Xi and Chr Y dosage
+cd4.Xresponse <- read.table(paste0(myPath,"/sca-immune/Autosomal_linear_regressions/cd4/cd4_autosomal_Xresponse.txt", header = T, sep = "\t"))
+cd4.Yresponse <- read.table(paste0(myPath,"/sca-immune/Autosomal_linear_regressions/cd4/cd4_autosomal_Yresponse.txt", header = T, sep = "\t"))
+cd4.Xresponse.Yabsent <- read.table(paste0(myPath,"/sca-immune/Autosomal_linear_regressions/cd4/cd4_autosomal_Yabsent_Xresponse.txt", header = T, sep = "\t"))
+cd4.Yresponse.Ypresent <- read.table(paste0(myPath,"/sca-immune/Autosomal_linear_regressions/cd4/cd4_autosomal_Ypresent_Yresponse.txt", header = T, sep = "\t"))
+cd4.Xresponse.1Y <- read.table(paste0(myPath,"/sca-immune/Autosomal_linear_regressions/cd4/cd4_autosomal_1Y_Xresponse.txt", header = T, sep = "\t"))
+
+
+#load Hallmark gene sets from MSigDB (https://www.gsea-msigdb.org/gsea/msigdb/human/collections.jsp#H) 
+hallmark_geneSet <- gmtPathways(paste0(myPath, "/sca-immune/Gene_set_enrichment/h.all.v7.1.symbols.gmt"))
+
+```
+
+##Gene set enrichment for full models
+```{r}
+#Gene set enrichment for the Xi response in full model
+Xranks <- cd4.Xresponse$stat
+names(Xranks) <- cd4.Xresponse$Gene
+Xranks <- na.omit(Xranks)
+
+fgseaRes_Xhallmark <- fgsea(pathways = hallmark_geneSet, stats = Xranks, minSize = 15, maxSize = 20000)
+fwrite(fgseaRes_Xhallmark, file="fgseaRes_cd4_Xresponse_tstat_hallmark.txt", sep="\t", sep2=c("", " ", ""))
+
+#Gene set enrichment for the Chr Y response in full model
+Yranks <- cd4.Yresponse$stat
+names(Yranks) <- cd4.Yresponse$Gene
+Yranks <- na.omit(Yranks)
+
+fgseaRes_Yhallmark <- fgsea(pathways = hallmark_geneSet, stats = Yranks, minSize = 15, maxSize = 20000)
+fwrite(fgseaRes_Yhallmark, file="fgseaRes_cd4_Yresponse_tstat_hallmark.txt", sep="\t", sep2=c("", " ", ""))
+
+```
+#Gene set enrichment for subset models
+```{r}
+#Gene set enrichment for the Xi response in subset model with no Y karyotypes (X, XX, XXX)
+Xranks.Yabsent <- cd4.Xresponse.Yabsent$stat
+names(Xranks.Yabsent) <- cd4.Xresponse.Yabsent$Gene
+Xranks.Yabsent <- na.omit(Xranks.Yabsent)
+
+fgseaRes_X.Yabsent.hallmark <- fgsea(pathways = hallmark_geneSet, stats = Xranks.Yabsent, minSize = 15, maxSize = 20000)
+fwrite(fgseaRes_X.Yabsent.hallmark, file="fgseaRes_cd4_Xresponse.Yabsent_tstat_hallmark.txt", sep="\t", sep2=c("", " ", ""))
+
+#Gene set enrichment for the Chr Y response in subset model with >1 Chr Y karyotypes (XY, XXY, XYY)
+Yranks.Ypresent <- cd4.Yresponse.Ypresent$stat
+names(Yranks.Ypresent) <- cd4.Yresponse.Ypresent$Gene
+Yranks.Ypresent <- na.omit(Yranks.Ypresent)
+
+fgseaRes_Y.Ypresent.hallmark <- fgsea(pathways = hallmark_geneSet, stats = Yranks.Ypresent, minSize = 15, maxSize = 20000)
+fwrite(fgseaRes_Y.Ypresent.hallmark, file="fgseaRes_cd4_Yresponse.Ypresent_tstat_hallmark.txt", sep="\t", sep2=c("", " ", ""))
+
+#Gene set enrichment for the Xi response in subset model with only 1 Chr Y (XY vs. XXY)
+Xranks.1Y <- cd4.Xresponse.1Y$stat
+names(Xranks.1Y) <- cd4.Xresponse.1Y$Gene
+Xranks.1Y <- na.omit(Xranks.1Y)
+
+fgseaRes_X.1Y.hallmark <- fgsea(pathways = hallmark_geneSet, stats = Xranks.1Y, minSize = 15, maxSize = 20000)
+fwrite(fgseaRes_X.1Y.hallmark, file="fgseaRes_cd4_Xresponse.1Y_tstat_hallmark.txt", sep="\t", sep2=c("", " ", ""))
+
+
+```
+#Compare NES across models
+```{r}
+cd4.allmodels <- list(fgseaRes_Xhallmark, fgseaRes_X.Yabsent.hallmark,fgseaRes_X.1Y.hallmark, fgseaRes_Yhallmark,  fgseaRes_Y.Ypresent.hallmark)
+cd4.fullmodels <- list(fgseaRes_Xhallmark, fgseaRes_Yhallmark)
+
+cd4.allmodels <- cd4.allmodels %>% reduce(full_join, by = 'pathway')
+cd4.allmodels.nes <- cd4.allmodels[, c("pathway", "NES.x", "NES.y", "NES.x.x", "NES.y.y", "NES")]
+colnames(cd4.allmodels.nes) <- c("pathway", "Full model", "Subset: no Chr Y", "Subset: 1 Chr Y", "Full model", "Subset: >1 Chr Y")
+rownames(cd4.allmodels.nes) <- cd4.allmodels.nes$pathway
+cd4.allmodels.nes <- cd4.allmodels.nes[,-1]
+
+cd4.allmodels.padj <- cd4.allmodels[, c("pathway", "padj.x", "padj.y", "padj.x.x", "padj.y.y", "padj")]
+colnames(cd4.allmodels.padj) <-c("pathway", "Full model", "Subset: no Chr Y", "Subset: 1 Chr Y", "Full model", "Subset: >1 Chr Y")
+rownames(cd4.allmodels.padj) <- cd4.allmodels.padj$pathway
+cd4.allmodels.padj <- cd4.allmodels.padj[,-1]
+
+library(ComplexHeatmap)
+library(circlize)
+#all models
+col_fun = colorRamp2(c(-2.5, 0, 2.5), c("#1E8BE5", "white", "#EFC036"))
+col_fun(seq(-2.5, 2.5))
+pdf(file = "cd4_all_pathways_NES_heatmap.pdf", width = 7, height = 9)
+Heatmap(cd4.allmodels.nes, column_title = "CD4+ T cells", col = col_fun, column_names_rot = 45, cluster_columns = FALSE, cell_fun = function(j, i, x, y, w, h, fill) {
+    if(cd4.allmodels.padj[i, j] < 0.001) {
+        grid.text("***", x, y)
+    } else if(cd4.allmodels.padj[i, j] < 0.01) {
+        grid.text("**", x, y)
+    } else if(cd4.allmodels.padj[i, j] < 0.05) {
+        grid.text("*", x, y)
+    }
+})
+dev.off()
+
+
+
+
+```
+
+

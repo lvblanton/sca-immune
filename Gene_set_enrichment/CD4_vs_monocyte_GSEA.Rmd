@@ -1,0 +1,266 @@
+---
+title: "CD4 vs. monocyte GSEA"
+author: "Laura Blanton"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache=TRUE)
+knitr::opts_knit$set(root.dir = "") #root directory
+```
+
+#Load Hallmark gene sets
+```{r}
+library(dplyr)
+library(fgsea)
+library(data.table)
+library(ggplot2)
+#load Hallmark gene sets from MSigDB (https://www.gsea-msigdb.org/gsea/msigdb/human/collections.jsp#H) 
+hallmark_geneSet <- gmtPathways(paste0(myPath, "/sca-immune/Gene_set_enrichment/h.all.v7.1.symbols.gmt"))
+
+```
+
+#NES Heatmaps
+```{r}
+library(purrr)
+cd4.x.fgsea <- read.table("fgseaRes_cd4_Xresponse_tstat_hallmark.txt", header = T, sep = "\t")
+cd4.y.fgsea <- read.table("fgseaRes_cd4_Yresponse_tstat_hallmark.txt", header = T, sep = "\t")
+mono.x.fgsea <- read.table("fgseaRes_mono_Xresponse_tstat_hallmark.txt", header = T, sep = "\t")
+mono.y.fgsea <- read.table("fgseaRes_mono_Yresponse_tstat_hallmark.txt", header = T, sep = "\t")
+
+fullmodels <- list(cd4.x.fgsea, cd4.y.fgsea, mono.x.fgsea, mono.y.fgsea)
+
+fullmodels <- fullmodels %>% reduce(full_join, by = 'pathway')
+fullmodels.nes <- fullmodels[, c("pathway", "NES.x", "NES.y", "NES.x.x", "NES.y.y")]
+colnames(fullmodels.nes) <- c("pathway", "CD4: Response to Chr X", "CD4: Response to Chr Y", "Monocyte: Response to Chr X", "Monocyte: Response to Chr Y")
+rownames(fullmodels.nes) <- fullmodels.nes$pathway
+fullmodels.nes <- fullmodels.nes[,-1]
+
+fullmodels.padj <- fullmodels[, c("pathway", "padj.x", "padj.y", "padj.x.x", "padj.y.y")]
+colnames(fullmodels.padj) <-c("pathway", "CD4: Response to Chr X", "CD4: Response to Chr Y", "Monocyte: Response to Chr X", "Monocyte: Response to Chr Y")
+rownames(fullmodels.padj) <- fullmodels.padj$pathway
+fullmodels.padj <- fullmodels.padj[,-1]
+
+fullmodels.nes <- na.omit(fullmodels.nes)
+fullmodels.padj <- na.omit(fullmodels.padj)
+
+library(dendsort)
+col_fun = colorRamp2(c(-2.5, 0, 2.5), c("#1E8BE5", "white", "#EFC036"))
+col_fun(seq(-2.5, 2.5))
+pdf(file = "all_pathways_NES_full_models_heatmap.pdf", width = 6, height = 9)
+Heatmap(fullmodels.nes, column_title = "CD4+ T cells", col = col_fun, column_names_rot = 45, cluster_columns = FALSE, cell_fun = function(j, i, x, y, w, h, fill) {
+    if(fullmodels.padj[i, j] < 0.001) {
+        grid.text("***", x, y)
+    } else if(fullmodels.padj[i, j] < 0.01) {
+        grid.text("**", x, y)
+    } else if(fullmodels.padj[i, j] < 0.05) {
+        grid.text("*", x, y)
+    }
+})
+dev.off()  
+
+```
+
+#Load LE gene results
+```{r}
+setwd("") #change to working directory
+cd4.x.fgsea <- read.table("fgseaRes_cd4_Xresponse_tstat_hallmark.txt", header = T, sep = "\t", row.names = "pathway")
+cd4.y.fgsea <- read.table("fgseaRes_cd4_Yresponse_tstat_hallmark.txt", header = T, sep = "\t", row.names = "pathway")
+mono.x.fgsea <- read.table("fgseaRes_mono_Xresponse_tstat_hallmark.txt", header = T, sep = "\t", row.names = "pathway")
+mono.y.fgsea <- read.table("fgseaRes_mono_Yresponse_tstat_hallmark.txt", header = T, sep = "\t", row.names = "pathway")
+```
+
+#Load effect size responses to Xi and Chr Y dosage 
+```{r}
+source("/sca-immune/Rfunctions/Function_makeSymmetric_X_Y.R")
+source("/sca-immune/Rfunctions/Function_getMaxMin.R")
+source("/sca-immune/Rfunctions/Function_paper2_corrPlot_deming_20230419.R")
+library(ggrepel)
+
+myPath <- #set path here
+
+#Load autosomal gene responses to Xi and Chr Y dosage
+monocyte.Xresponse <- read.table(paste0(myPath,"/sca-immune/Autosomal_linear_regressions/monocyte/monocyte_autosomal_Xresponse.txt", header = T, sep = "\t"))
+monocyte.Yresponse <- read.table(paste0(myPath,"/sca-immune/Autosomal_linear_regressions/monocyte/monocyte_autosomal_Yresponse.txt", header = T, sep = "\t"))
+
+cd4.Xresponse <- read.table(paste0(myPath,"/sca-immune/Autosomal_linear_regressions/cd4/cd4_autosomal_Xresponse.txt", header = T, sep = "\t"))
+cd4.Yresponse <- read.table(paste0(myPath,"/sca-immune/Autosomal_linear_regressions/cd4/cd4_autosomal_Yresponse.txt", header = T, sep = "\t"))
+
+cd4.mono.x <- merge(cd4.x.response.auto, mono.x.response.auto, by = "Gene")
+cd4.mono.y <- merge(cd4.y.response.auto, mono.y.response.auto, by = "Gene")
+
+```
+
+#Concordant X-Y pathways
+```{r}
+cd4.pathways <- c("HALLMARK_TGF_BETA_SIGNALING", "HALLMARK_INTERFERON_ALPHA_RESPONSE", "HALLMARK_ALLOGRAFT_REJECTION",  "HALLMARK_XENOBIOTIC_METABOLISM", "HALLMARK_INTERFERON_GAMMA_RESPONSE", "HALLMARK_FATTY_ACID_METABOLISM", "HALLMARK_COMPLEMENT", "HALLMARK_MYC_TARGETS_V1",   "HALLMARK_OXIDATIVE_PHOSPHORYLATION")
+mono.pathways <- c("HALLMARK_KRAS_SIGNALING_UP", "HALLMARK_TNFA_SIGNALING_VIA_NFKB", "HALLMARK_INFLAMMATORY_RESPONSE")
+
+cd4.xy.overlaps <- data.frame(pathway = character(), pval = numeric(), both = numeric(), xonly = numeric(), yonly = numeric() )
+for(i in cd4.pathways){
+  le.x <- (strsplit(cd4.x.fgsea[i, "leadingEdge"]," ")[[1]])
+  le.y <- (strsplit(cd4.y.fgsea[i, "leadingEdge"]," ")[[1]])
+  le.xy <- intersect(le.x,le.y)  
+  
+  a <- length(intersect(le.x,le.y))
+  b <- length(le.x)
+  c <- cd4.x.fgsea[i, "size"]
+  d <- length(le.y)
+  cd4.xy.overlaps[i, "pathway"] <- i
+  cd4.xy.overlaps[i, "pval"] <- phyper(a-1,b,c-b,d,lower.tail= FALSE)
+  cd4.xy.overlaps[i, "xonly"] = (b - a)/(length(union(le.x,le.y)))
+  cd4.xy.overlaps[i, "yonly"] = (d - a)/(length(union(le.x,le.y)))
+  cd4.xy.overlaps[i, "both"] =  a/(length(union(le.x,le.y)))
+}
+
+mono.xy.overlaps <- data.frame(pathway = character(), pval = numeric(), both = numeric(), xonly = numeric(), yonly = numeric())
+for(i in mono.pathways){
+  le.x <- (strsplit(mono.x.fgsea[i, "leadingEdge"]," ")[[1]])
+  le.y <- (strsplit(mono.y.fgsea[i, "leadingEdge"]," ")[[1]])
+  le.xy <- intersect(le.x,le.y)  
+  
+  a <- length(intersect(le.x,le.y))
+  b <- length(le.x)
+  c <- mono.x.fgsea[i, "size"]
+  d <- length(le.y)
+  mono.xy.overlaps[i, "pathway"] <- i
+  mono.xy.overlaps[i, "pval"] <- phyper(a-1,b,c-b,d,lower.tail= FALSE)
+  mono.xy.overlaps[i, "xonly"] = (b - a)/(length(union(le.x,le.y)))
+  mono.xy.overlaps[i, "yonly"] = (d - a)/(length(union(le.x,le.y)))
+  mono.xy.overlaps[i, "both"] =  a/(length(union(le.x,le.y)))
+}
+
+cd4.xy.overlaps <- cd4.xy.overlaps[order(cd4.xy.overlaps[, "both"], decreasing = TRUE), ]
+pdf(file = "cd4_xy_both_sig_LE_gene_overlaps_barplot.pdf", width = 5, height = 4)
+barplot(as.matrix(t(cd4.xy.overlaps[,3:5])), col= c("#40404040", "#D95F0280", "#6e02d980"), border="white", las=2, ylab = "Proportion of leading edge genes")
+dev.off()
+
+mono.xy.overlaps <- mono.xy.overlaps[order(mono.xy.overlaps[, "both"], decreasing = TRUE), ]
+pdf(file = "mono_xy_both_sig_LE_gene_overlaps_barplot.pdf", width = 3, height = 4)
+barplot(as.matrix(t(mono.xy.overlaps[,3:5])), col= c("#40404040", "#D95F0280", "#6e02d980"), border="white", las=2, ylab = "Proportion of leading edge genes")
+dev.off()
+
+xy_response <- merge(cd4.Xresponse, cd4.Yresponse, by = "Gene")
+
+cd4.xy.corr.all <- data.frame(pathway = character(), demingslope = numeric(), deming.lowCI = numeric(), deming.upCI = numeric(), pearson.R = numeric(), pearson.pval = numeric(), log2FC.ttest.pval = numeric(), log2FC.ttest.est = numeric())
+for(i in rownames(cd4.x.fgsea)){
+  le.x <- (strsplit(cd4.x.fgsea[i, "leadingEdge"]," ")[[1]])
+  le.y <- (strsplit(cd4.y.fgsea[i, "leadingEdge"]," ")[[1]])
+  le.xy <- union(le.x,le.y)  
+  
+  xy_response.le.xy <- xy_response[xy_response$Gene %in% le.xy,]
+  myData <- xy_response.le.xy[,c("Gene","log2FoldChange.x", "lfcSE.x", "padj.x", "log2FoldChange.y", "lfcSE.y", "padj.y")]
+  colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+  my.deming <- deming(formula = myData$y ~ myData$x, xstd = myData$x_err, ystd = myData$y_err) 
+  myCor_pear <- cor.test(myData$x, myData$y, method=c("pearson"))
+  
+  cd4.xy.corr.all[i, "pathway"] <- i
+  cd4.xy.corr.all[i, "demingslope"] <- my.deming$coefficients[2]
+  cd4.xy.corr.all[i, "deming.lowCI"] <- my.deming$ci[2,1]
+  cd4.xy.corr.all[i, "deming.upCI"] <- my.deming$ci[2,2]
+  cd4.xy.corr.all[i, "pearson.R"] = myCor_pear$estimate
+  cd4.xy.corr.all[i, "pearson.pval"] = formatC(myCor_pear$p.value, digits=2,format = "e")
+  
+  X.log2FC <- data.frame(gene = myData$Gene, log2FC = abs(myData$x), response = "X-response")
+  Y.log2FC <- data.frame(gene = myData$Gene, log2FC = abs(myData$y), response = "Y-response")
+  dat <- rbind(X.log2FC, Y.log2FC)
+  res <- t.test(X.log2FC$log2FC, Y.log2FC$log2FC, paired = TRUE)
+  
+  cd4.xy.corr.all[i, "log2FC.ttest.pval"] = res$p.value
+  cd4.xy.corr.all[i, "log2FC.ttest.est"] = res$estimate
+  
+}
+write.table(cd4.xy.corr.all, "cd4_gsea_xy_correlations_all_pathways.txt", sep = "\t", quote = F)
+
+for(i in cd4.pathways){
+  le.x <- (strsplit(cd4.x.fgsea[i, "leadingEdge"]," ")[[1]])
+  le.y <- (strsplit(cd4.y.fgsea[i, "leadingEdge"]," ")[[1]])
+  le.xy <- union(le.x,le.y)  
+  
+  xy_response.le.xy <- xy_response[xy_response$Gene %in% le.xy,]
+  myData <- xy_response.le.xy[,c("Gene","log2FoldChange.x", "lfcSE.x", "padj.x", "log2FoldChange.y", "lfcSE.y", "padj.y")]
+  colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+  my.deming <- deming(formula = myData$y ~ myData$x, xstd = myData$x_err, ystd = myData$y_err) 
+  myCor_pear <- cor.test(myData$x, myData$y, method=c("pearson"))
+  
+  cd4.xy.corr[i, "pathway"] <- i
+  cd4.xy.corr[i, "demingslope"] <- my.deming$coefficients[2]
+  cd4.xy.corr[i, "deming.lowCI"] <- my.deming$ci[2,1]
+  cd4.xy.corr[i, "deming.upCI"] <- my.deming$ci[2,2]
+  cd4.xy.corr[i, "pearson.R"] = myCor_pear$estimate
+  cd4.xy.corr[i, "pearson.pval"] = formatC(myCor_pear$p.value, digits=2,format = "e")
+  
+  X.log2FC <- data.frame(gene = myData$Gene, log2FC = abs(myData$x), response = "X-response")
+  Y.log2FC <- data.frame(gene = myData$Gene, log2FC = abs(myData$y), response = "Y-response")
+  dat <- rbind(X.log2FC, Y.log2FC)
+  res <- t.test(X.log2FC$log2FC, Y.log2FC$log2FC, paired = TRUE)
+  
+  cd4.xy.corr[i, "log2FC.ttest.pval"] = res$p.value
+  cd4.xy.corr[i, "log2FC.ttest.est"] = res$estimate
+  
+}
+
+mono.xy.corr.all <- data.frame(pathway = character(), demingslope = numeric(), deming.lowCI = numeric(), deming.upCI = numeric(), pearson.R = numeric(), pearson.pval = numeric(), log2FC.ttest.pval = numeric(), log2FC.ttest.est = numeric())
+for(i in rownames(mono.x.fgsea)){
+  le.x <- (strsplit(mono.x.fgsea[i, "leadingEdge"]," ")[[1]])
+  le.y <- (strsplit(mono.y.fgsea[i, "leadingEdge"]," ")[[1]])
+  le.xy <- union(le.x,le.y)  
+  
+  xy_response.le.xy <- xy_response[xy_response$Gene %in% le.xy,]
+  myData <- xy_response.le.xy[,c("Gene","log2FoldChange.x", "lfcSE.x", "padj.x", "log2FoldChange.y", "lfcSE.y", "padj.y")]
+  colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+  my.deming <- deming(formula = myData$y ~ myData$x, xstd = myData$x_err, ystd = myData$y_err) 
+  myCor_pear <- cor.test(myData$x, myData$y, method=c("pearson"))
+  
+  mono.xy.corr.all[i, "pathway"] <- i
+  mono.xy.corr.all[i, "demingslope"] <- my.deming$coefficients[2]
+  mono.xy.corr.all[i, "deming.lowCI"] <- my.deming$ci[2,1]
+  mono.xy.corr.all[i, "deming.upCI"] <- my.deming$ci[2,2]
+  mono.xy.corr.all[i, "pearson.R"] = myCor_pear$estimate
+  mono.xy.corr.all[i, "pearson.pval"] = formatC(myCor_pear$p.value, digits=2,format = "e")
+  
+  X.log2FC <- data.frame(gene = myData$Gene, log2FC = abs(myData$x), response = "X-response")
+  Y.log2FC <- data.frame(gene = myData$Gene, log2FC = abs(myData$y), response = "Y-response")
+  dat <- rbind(X.log2FC, Y.log2FC)
+  res <- t.test(X.log2FC$log2FC, Y.log2FC$log2FC, paired = TRUE)
+  
+  mono.xy.corr.all[i, "log2FC.ttest.pval"] = res$p.value
+  mono.xy.corr.all[i, "log2FC.ttest.est"] = res$estimate
+  
+}
+write.table(mono.xy.corr.all, "mono_gsea_xy_correlations_all_pathways.txt", sep = "\t", quote = F)
+cd4.mono.xy.corr.all <- merge(cd4.xy.corr.all, mono.xy.corr.all, by = "pathway", all = T)
+write.table(cd4.mono.xy.corr.all, "cd4_mono_gsea_xy_correlations_all_pathways.txt", sep = "\t", quote = F)
+
+mono.xy.corr <- data.frame(pathway = character(), demingslope = numeric(), deming.lowCI = numeric(), deming.upCI = numeric(), pearson.R = numeric(), pearson.pval = numeric(), log2FC.ttest.pval = numeric(), log2FC.ttest.est = numeric())
+for(i in mono.pathways){
+  le.x <- (strsplit(mono.x.fgsea[i, "leadingEdge"]," ")[[1]])
+  le.y <- (strsplit(mono.y.fgsea[i, "leadingEdge"]," ")[[1]])
+  le.xy <- union(le.x,le.y)  
+  
+  xy_response.le.xy <- xy_response[xy_response$Gene %in% le.xy,]
+  myData <- xy_response.le.xy[,c("Gene","log2FoldChange.x", "lfcSE.x", "padj.x", "log2FoldChange.y", "lfcSE.y", "padj.y")]
+  colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+  my.deming <- deming(formula = myData$y ~ myData$x, xstd = myData$x_err, ystd = myData$y_err) 
+  myCor_pear <- cor.test(myData$x, myData$y, method=c("pearson"))
+  
+  mono.xy.corr[i, "pathway"] <- i
+  mono.xy.corr[i, "demingslope"] <- my.deming$coefficients[2]
+  mono.xy.corr[i, "deming.lowCI"] <- my.deming$ci[2,1]
+  mono.xy.corr[i, "deming.upCI"] <- my.deming$ci[2,2]
+  mono.xy.corr[i, "pearson.R"] = myCor_pear$estimate
+  mono.xy.corr[i, "pearson.pval"] = formatC(myCor_pear$p.value, digits=2,format = "e")
+  
+  X.log2FC <- data.frame(gene = myData$Gene, log2FC = abs(myData$x), response = "X-response")
+  Y.log2FC <- data.frame(gene = myData$Gene, log2FC = abs(myData$y), response = "Y-response")
+  dat <- rbind(X.log2FC, Y.log2FC)
+  res <- t.test(X.log2FC$log2FC, Y.log2FC$log2FC, paired = TRUE)
+  
+  mono.xy.corr[i, "log2FC.ttest.pval"] = res$p.value
+  mono.xy.corr[i, "log2FC.ttest.est"] = res$estimate
+  
+}
+
+```
+
+

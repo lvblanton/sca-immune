@@ -1,0 +1,966 @@
+Gene	Final_XCI_Call
+ADGRG4	Escape
+AFF2	Escape
+AKAP17A	Escape
+ALG13	Escape
+AP1S2	Escape
+ARSD	Escape
+ARSH	Escape
+ARSL	Escape
+ASMT	Escape
+ASMTL	Escape
+ASMTL-AS1	Escape
+ATP2B3	Escape
+BEND2	Escape
+BEX1	Escape
+BRS3	Escape
+CA5B	Escape
+CD99	Escape
+CDK16	Escape
+CHM	Escape
+COL4A6	Escape
+COX7B	Escape
+CXorf38	Escape
+DDX3X	Escape
+DHRSX	Escape
+EIF1AX	Escape
+EIF2S3	Escape
+FAM9C	Escape
+FOXO4	Escape
+FRMD7	Escape
+FRMPD3	Escape
+FRMPD4	Escape
+FUNDC1	Escape
+GEMIN8	Escape
+GPM6B	Escape
+GPR173	Escape
+GPR174	Escape
+GTPBP6	Escape
+GYG2	Escape
+HCFC1	Escape
+HS6ST2	Escape
+HUWE1	Escape
+IKBKG	Escape
+IL1RAPL1	Escape
+IL1RAPL2	Escape
+IL3RA	Escape
+INE1	Escape
+INE2	Escape
+JPX	Escape
+KDM5C	Escape
+KDM6A	Escape
+LANCL3	Escape
+LINC00630	Escape
+LINC01546	Escape
+MAGEA8	Escape
+MAGEE1	Escape
+MAOA	Escape
+MAP7D2	Escape
+MED14	Escape
+MORF4L2-AS1	Escape
+MPC1L	Escape
+MSL3	Escape
+MXRA5	Escape
+NAA10	Escape
+NHS	Escape
+NXF3	Escape
+OFD1	Escape
+P2RY10	Escape
+P2RY8	Escape
+PDZD11	Escape
+PFKFB1	Escape
+PLAC1	Escape
+PLCXD1	Escape
+PNPLA4	Escape
+PPEF1	Escape
+PPP2R3B	Escape
+PQBP1	Escape
+PRKX	Escape
+PUDP	Escape
+RBBP7	Escape
+REPS2	Escape
+RPS4X	Escape
+S100G	Escape
+SCML2	Escape
+SEPTIN6	Escape
+SHOX	Escape
+SLC25A6	Escape
+SMC1A	Escape
+STK26	Escape
+STS	Escape
+SYAP1	Escape
+TASL	Escape
+TCEAL9	Escape
+TCEANC	Escape
+TMSB4X	Escape
+TRAPPC2	Escape
+TRPC5	Escape
+TXLNG	Escape
+UBA1	Escape
+UBQLN2	Escape
+USP9X	Escape
+WAS	Escape
+XG	Escape
+XIST	Escape
+ZBED1	Escape
+ZFX	Escape
+ZNF157	Escape
+ZRSR2	Escape
+ACTRT1	No call
+AFF2-IT1	No call
+ALG13-AS1	No call
+AMELX	No call
+AMER1	No call
+AMMECR1-IT1	No call
+ARHGEF9	No call
+ARHGEF9-IT1	No call
+ARMCX3-AS1	No call
+ARMCX5-GPRASP2	No call
+ARSD-AS1	No call
+ARSF	No call
+ARX	No call
+ATP1B4	No call
+ATP6AP1-DT	No call
+ATXN3L	No call
+AWAT2	No call
+BEX5	No call
+BMP15	No call
+BMX	No call
+CASK-AS1	No call
+CBLL2	No call
+CCDC160	No call
+CDX4	No call
+CENPVL1	No call
+CENPVL2	No call
+CENPVL3	No call
+CFAP47	No call
+CLDN34	No call
+CMC4	No call
+CNGA2	No call
+CPXCR1	No call
+CRLF2	No call
+CSAG1	No call
+CSAG2	No call
+CSAG3	No call
+CSF2RA	No call
+CT45A1	No call
+CT45A10	No call
+CT45A2	No call
+CT45A3	No call
+CT45A5	No call
+CT45A6	No call
+CT45A7	No call
+CT45A8	No call
+CT45A9	No call
+CT47A1	No call
+CT47A10	No call
+CT47A11	No call
+CT47A12	No call
+CT47A2	No call
+CT47A3	No call
+CT47A4	No call
+CT47A5	No call
+CT47A6	No call
+CT47A7	No call
+CT47A8	No call
+CT47A9	No call
+CT47B1	No call
+CT55	No call
+CT83	No call
+CTAG1A	No call
+CTAG1B	No call
+CTAG2	No call
+CXorf49	No call
+CXorf49B	No call
+CXorf51A	No call
+CXorf51B	No call
+CYLC1	No call
+DANT1	No call
+DANT2	No call
+DCAF12L1	No call
+DCAF12L2	No call
+DCAF8L1	No call
+DCAF8L2	No call
+DDX53	No call
+DHRSX-IT1	No call
+DIAPH2-AS1	No call
+DLG3-AS1	No call
+DMD-AS3	No call
+DMRTC1	No call
+DMRTC1B	No call
+DNAAF6	No call
+DUSP21	No call
+EIF1AX-AS1	No call
+EOLA1-DT	No call
+ERAS	No call
+ESX1	No call
+ETDA	No call
+ETDB	No call
+EZHIP	No call
+F8A1	No call
+F8A2	No call
+F8A3	No call
+F9	No call
+FAM156B	No call
+FAM223A	No call
+FAM223B	No call
+FAM226B	No call
+FAM236A	No call
+FAM236B	No call
+FAM236D	No call
+FAM47A	No call
+FAM47B	No call
+FAM47C	No call
+FAM9A	No call
+FAM9B	No call
+FATE1	No call
+FGF13-AS1	No call
+FGF16	No call
+FMR1-IT1	No call
+FMR1NB	No call
+FOXR2	No call
+FRMPD3-AS1	No call
+FRMPD4-AS1	No call
+FTHL17	No call
+GABRQ	No call
+GAGE1	No call
+GAGE10	No call
+GAGE12B	No call
+GAGE12C	No call
+GAGE12D	No call
+GAGE12E	No call
+GAGE12F	No call
+GAGE12G	No call
+GAGE12H	No call
+GAGE12J	No call
+GAGE13	No call
+GAGE2A	No call
+GAGE2E	No call
+GDPD2	No call
+GJB1	No call
+GK-AS1	No call
+GK-IT1	No call
+GLOD5	No call
+GNG5P2	No call
+GPR101	No call
+GPR119	No call
+GPR50	No call
+GPR50-AS1	No call
+GPRASP1	No call
+GS1-594A7.3	No call
+GS1-600G8.3	No call
+GYG2-AS1	No call
+H2AB1	No call
+H2AB2	No call
+H2AB3	No call
+H2AL1Q	No call
+H2AL3	No call
+H2AP	No call
+H2BW1	No call
+H2BW2	No call
+HCCS-DT	No call
+HCFC1-AS1	No call
+HS6ST2-AS1	No call
+HSFX1	No call
+HSFX2	No call
+HSFX3	No call
+HTR2C	No call
+IGBP1-AS1	No call
+IGBP1-AS2	No call
+IL13RA2	No call
+IL2RG	No call
+INTS6L-AS1	No call
+IRS4	No call
+IRS4-AS1	No call
+ITGB1BP2	No call
+ITIH6	No call
+KANTR	No call
+KDM5C-IT1	No call
+KLHL34	No call
+KLHL4	No call
+L1CAM-AS1	No call
+LINC00102	No call
+LINC00106	No call
+LINC00269	No call
+LINC00629	No call
+LINC00632	No call
+LINC00685	No call
+LINC00850	No call
+LINC00891	No call
+LINC00892	No call
+LINC01186	No call
+LINC01201	No call
+LINC01203	No call
+LINC01281	No call
+LINC01282	No call
+LINC01283	No call
+LINC01284	No call
+LINC01285	No call
+LINC01402	No call
+LINC01456	No call
+LINC01496	No call
+LINC01545	No call
+LINC01560	No call
+LINC02154	No call
+LINC02243	No call
+LINC02595	No call
+LINC02601	No call
+LINC02927	No call
+LINC02931	No call
+LINC02968	No call
+LPAR4	No call
+LUZP4	No call
+MAGEA1	No call
+MAGEA10	No call
+MAGEA12	No call
+MAGEA2	No call
+MAGEA2B	No call
+MAGEA3	No call
+MAGEA4	No call
+MAGEA4-AS1	No call
+MAGEA6	No call
+MAGEA8-AS1	No call
+MAGEA9	No call
+MAGEA9B	No call
+MAGEB1	No call
+MAGEB10	No call
+MAGEB16	No call
+MAGEB17	No call
+MAGEB18	No call
+MAGEB2	No call
+MAGEB3	No call
+MAGEB4	No call
+MAGEB5	No call
+MAGEB6	No call
+MAGEB6B	No call
+MAGEC1	No call
+MAGEC2	No call
+MAGEC3	No call
+MAGED4	No call
+MAGED4B	No call
+MAGEE2	No call
+MED14OS	No call
+MID1IP1-AS1	No call
+MIR222HG	No call
+MIR223HG	No call
+MIR325HG	No call
+NALF2	No call
+NCBP2L	No call
+NDP	No call
+NDP-AS1	No call
+NHS-AS1	No call
+NLRP2B	No call
+NOX1	No call
+NR0B1	No call
+NXF2	No call
+NXF2B	No call
+OPN1LW	No call
+OPN1MW	No call
+OPN1MW2	No call
+OPN1MW3	No call
+OR13H1	No call
+OTUD6A	No call
+PABPC1L2A	No call
+PABPC1L2B	No call
+PABPC1L2B-AS1	No call
+PABPC5	No call
+PABPC5-AS1	No call
+PAGE1	No call
+PAGE2	No call
+PAGE2B	No call
+PAGE3	No call
+PAGE4	No call
+PAGE5	No call
+PASD1	No call
+PCDH19	No call
+PCYT1B-AS1	No call
+PGAM4	No call
+PHEX-AS1	No call
+PHKA1-AS1	No call
+PHKA2-AS1	No call
+PINCR	No call
+PLS3-AS1	No call
+PLXNB3-AS1	No call
+PNCK	No call
+PNMA6E	No call
+PNMA6F	No call
+PORCN-DT	No call
+POU3F4	No call
+PPEF1-AS1	No call
+PPP1R2C	No call
+PPP4R3C	No call
+PRKX-AS1	No call
+PRR32	No call
+PRRG3	No call
+PTCHD1-AS	No call
+PWWP4	No call
+RAB40AL	No call
+RAP2C-AS1	No call
+RBMXL3	No call
+RHOXF1	No call
+RHOXF1-AS1	No call
+RHOXF2B	No call
+RNF128	No call
+RPA4	No call
+RPL36A-HNRNPH2	No call
+RTL3	No call
+RTL8B	No call
+SAGE1	No call
+SERPINA7	No call
+SERTM2	No call
+SLC25A5-AS1	No call
+SLC6A14	No call
+SLC6A8	No call
+SLC7A3	No call
+SLITRK2	No call
+SLITRK4	No call
+SMIM10L2A	No call
+SMIM10L2B	No call
+SMIM10L2B-AS1	No call
+SMIM9	No call
+SOX3	No call
+SPACA5	No call
+SPACA5B	No call
+SPANXA1	No call
+SPANXA2	No call
+SPANXA2-OT1	No call
+SPANXB1	No call
+SPANXC	No call
+SPANXD	No call
+SPANXN1	No call
+SPANXN2	No call
+SPANXN3	No call
+SPANXN4	No call
+SPANXN5	No call
+SPIN2B	No call
+SPIN4	No call
+SPIN4-AS1	No call
+SSX1	No call
+SSX2	No call
+SSX2B	No call
+SSX3	No call
+SSX4	No call
+SSX4B	No call
+SSX5	No call
+SSX7	No call
+STAG2-AS1	No call
+SUPT20HL1	No call
+SUPT20HL2	No call
+SYP-AS1	No call
+TAB3-AS1	No call
+TAB3-AS2	No call
+TBX22	No call
+TCEAL3-AS1	No call
+TCEAL5	No call
+TCEAL6	No call
+TCP11X1	No call
+TCP11X2	No call
+TDGF1P3	No call
+TENT5D	No call
+TEX11	No call
+TEX13A	No call
+TEX13B	No call
+TEX13C	No call
+TEX13D	No call
+TEX28	No call
+TFDP3	No call
+TGIF2LX	No call
+TLR8	No call
+TMEM31	No call
+TMLHE-AS1	No call
+TMSB15B-AS1	No call
+TNMD	No call
+TRMT2B-AS1	No call
+TRPC5OS	No call
+TSIX	No call
+UBE2NL	No call
+USP26	No call
+USP27X	No call
+USP27X-DT	No call
+UXT-AS1	No call
+VCX	No call
+VCX2	No call
+VCX3A	No call
+VCX3B	No call
+VSIG1	No call
+VSIG4	No call
+WASH6P	No call
+WASIR1	No call
+WWC3-AS1	No call
+XACT	No call
+XAGE1A	No call
+XAGE1B	No call
+XAGE2	No call
+XAGE3	No call
+XAGE5	No call
+XIAP-AS1	No call
+XK	No call
+XKRX	No call
+ZCCHC12	No call
+ZCCHC13	No call
+ZCCHC18	No call
+ZFP92	No call
+ZFX-AS1	No call
+ZIC3	No call
+ZNF630-AS1	No call
+ZNF674-AS1	No call
+ABCB7	Subject
+ABCD1	Subject
+ACE2	Subject
+ACOT9	Subject
+ACSL4	Subject
+ADGRG2	Subject
+AGTR2	Subject
+AIFM1	Subject
+AKAP14	Subject
+AKAP4	Subject
+ALAS2	Subject
+AMMECR1	Subject
+AMOT	Subject
+ANOS1	Subject
+APEX2	Subject
+APLN	Subject
+APOO	Subject
+APOOL	Subject
+AR	Subject
+ARAF	Subject
+ARHGAP36	Subject
+ARHGAP4	Subject
+ARHGAP6	Subject
+ARHGEF6	Subject
+ARL13A	Subject
+ARMCX1	Subject
+ARMCX2	Subject
+ARMCX3	Subject
+ARMCX4	Subject
+ARMCX5	Subject
+ARMCX6	Subject
+ARR3	Subject
+ASB11	Subject
+ASB12	Subject
+ASB9	Subject
+ATG4A	Subject
+ATP11C	Subject
+ATP6AP1	Subject
+ATP6AP2	Subject
+ATP7A	Subject
+ATRX	Subject
+AVPR2	Subject
+AWAT1	Subject
+BCAP31	Subject
+BCLAF3	Subject
+BCOR	Subject
+BCORL1	Subject
+BEX2	Subject
+BEX3	Subject
+BEX4	Subject
+BGN	Subject
+BHLHB9	Subject
+BRCC3	Subject
+BRWD3	Subject
+BTK	Subject
+C1GALT1C1	Subject
+CACNA1F	Subject
+CAPN6	Subject
+CASK	Subject
+CCDC120	Subject
+CCDC22	Subject
+CCNB3	Subject
+CCNQ	Subject
+CD40LG	Subject
+CD99L2	Subject
+CDKL5	Subject
+CDR1	Subject
+CENPI	Subject
+CETN2	Subject
+CFP	Subject
+CHIC1	Subject
+CHRDL1	Subject
+CHST7	Subject
+CITED1	Subject
+CLCN4	Subject
+CLCN5	Subject
+CLDN2	Subject
+CLIC2	Subject
+CLTRN	Subject
+CNKSR2	Subject
+COL4A5	Subject
+CSTF2	Subject
+CTPS2	Subject
+CUL4B	Subject
+CXCR3	Subject
+CXorf58	Subject
+CXorf65	Subject
+CXorf66	Subject
+CYBB	Subject
+CYSLTR1	Subject
+DACH2	Subject
+DCX	Subject
+DGAT2L6	Subject
+DGKK	Subject
+DIAPH2	Subject
+DIPK2B	Subject
+DKC1	Subject
+DLG3	Subject
+DMD	Subject
+DNASE1L1	Subject
+DOCK11	Subject
+DRP2	Subject
+DUSP9	Subject
+DYNLT3	Subject
+EBP	Subject
+EDA	Subject
+EDA2R	Subject
+EFHC2	Subject
+EFNB1	Subject
+EGFL6	Subject
+ELF4	Subject
+ELK1	Subject
+EMD	Subject
+ENOX2	Subject
+EOLA1	Subject
+EOLA2	Subject
+EOLA2-DT	Subject
+ERCC6L	Subject
+F8	Subject
+FAAH2	Subject
+FAM104B	Subject
+FAM120C	Subject
+FAM133A	Subject
+FAM156A	Subject
+FAM199X	Subject
+FAM3A	Subject
+FAM50A	Subject
+FANCB	Subject
+FGD1	Subject
+FGF13	Subject
+FHL1	Subject
+FIRRE	Subject
+FLNA	Subject
+FMR1	Subject
+FMR1-AS1	Subject
+FOXP3	Subject
+FTSJ1	Subject
+FTX	Subject
+FUNDC2	Subject
+G6PD	Subject
+GAB3	Subject
+GABRA3	Subject
+GABRE	Subject
+GATA1	Subject
+GCNA	Subject
+GDI1	Subject
+GK	Subject
+GLA	Subject
+GLRA2	Subject
+GLUD2	Subject
+GNL3L	Subject
+GPC3	Subject
+GPC4	Subject
+GPKOW	Subject
+GPR143	Subject
+GPR34	Subject
+GPR82	Subject
+GPRASP2	Subject
+GRIA3	Subject
+GRIPAP1	Subject
+GRPR	Subject
+GSPT2	Subject
+GUCY2F	Subject
+HAUS7	Subject
+HCCS	Subject
+HDAC6	Subject
+HDAC8	Subject
+HDX	Subject
+HEPH	Subject
+HMGB3	Subject
+HMGN5	Subject
+HNRNPH2	Subject
+HPRT1	Subject
+HSD17B10	Subject
+HTATSF1	Subject
+IDH3G	Subject
+IDS	Subject
+IGBP1	Subject
+IGSF1	Subject
+IL13RA1	Subject
+IL9R	Subject
+INTS6L	Subject
+IQSEC2	Subject
+IRAK1	Subject
+ITM2A	Subject
+JADE3	Subject
+KCND1	Subject
+KCNE5	Subject
+KIAA1210	Subject
+KIF4A	Subject
+KLF8	Subject
+KLHL13	Subject
+KLHL15	Subject
+KRBOX4	Subject
+L1CAM	Subject
+LAGE3	Subject
+LAMP2	Subject
+LAS1L	Subject
+LDOC1	Subject
+LHFPL1	Subject
+LINC01204	Subject
+LINC01278	Subject
+LONRF3	Subject
+LRCH2	Subject
+MAGEA11	Subject
+MAGED1	Subject
+MAGED2	Subject
+MAGEH1	Subject
+MAGIX	Subject
+MAGT1	Subject
+MAMLD1	Subject
+MAOB	Subject
+MAP3K15	Subject
+MAP7D3	Subject
+MBNL3	Subject
+MBTPS2	Subject
+MCF2	Subject
+MCTS1	Subject
+MECP2	Subject
+MED12	Subject
+MID1	Subject
+MID1IP1	Subject
+MID2	Subject
+MIR503HG	Subject
+MMGT1	Subject
+MORC4	Subject
+MORF4L2	Subject
+MOSPD1	Subject
+MOSPD2	Subject
+MPP1	Subject
+MSN	Subject
+MTCP1	Subject
+MTM1	Subject
+MTMR1	Subject
+MTMR8	Subject
+NAP1L2	Subject
+NAP1L3	Subject
+NBDY	Subject
+NDUFA1	Subject
+NDUFB11	Subject
+NEXMIF	Subject
+NHSL2	Subject
+NKAP	Subject
+NKRF	Subject
+NLGN3	Subject
+NLGN4X	Subject
+NONO	Subject
+NRK	Subject
+NSDHL	Subject
+NUDT10	Subject
+NUDT11	Subject
+NUP62CL	Subject
+NXT2	Subject
+NYX	Subject
+OCRL	Subject
+OGT	Subject
+OPHN1	Subject
+OTC	Subject
+OTUD5	Subject
+P2RY4	Subject
+PABIR2	Subject
+PABIR3	Subject
+PAK3	Subject
+PBDC1	Subject
+PCDH11X	Subject
+PCSK1N	Subject
+PCYT1B	Subject
+PDHA1	Subject
+PDK3	Subject
+PDZD4	Subject
+PGK1	Subject
+PGRMC1	Subject
+PHEX	Subject
+PHF6	Subject
+PHF8	Subject
+PHKA1	Subject
+PHKA2	Subject
+PIGA	Subject
+PIM2	Subject
+PIN4	Subject
+PIR	Subject
+PJA1	Subject
+PLP1	Subject
+PLP2	Subject
+PLS3	Subject
+PLXNA3	Subject
+PLXNB3	Subject
+PNMA3	Subject
+PNMA5	Subject
+PNMA6A	Subject
+POF1B	Subject
+POLA1	Subject
+PORCN	Subject
+PPP1R3F	Subject
+PRAF2	Subject
+PRDX4	Subject
+PRICKLE3	Subject
+PRPS1	Subject
+PRPS2	Subject
+PRRG1	Subject
+PSMD10	Subject
+PTCHD1	Subject
+PWWP3B	Subject
+RAB33A	Subject
+RAB39B	Subject
+RAB40A	Subject
+RAB41	Subject
+RAB9A	Subject
+RAB9B	Subject
+RADX	Subject
+RAI2	Subject
+RAP2C	Subject
+RBM10	Subject
+RBM3	Subject
+RBM41	Subject
+RBMX	Subject
+RBMX2	Subject
+RENBP	Subject
+RGN	Subject
+RHOXF2	Subject
+RIBC1	Subject
+RIPPLY1	Subject
+RLIM	Subject
+RNF113A	Subject
+RP2	Subject
+RPGR	Subject
+RPL10	Subject
+RPL36A	Subject
+RPL39	Subject
+RPS6KA3	Subject
+RPS6KA6	Subject
+RRAGB	Subject
+RS1	Subject
+RTL4	Subject
+RTL5	Subject
+RTL8A	Subject
+RTL8C	Subject
+RTL9	Subject
+SASH3	Subject
+SAT1	Subject
+SATL1	Subject
+SCML1	Subject
+SH2D1A	Subject
+SH3BGRL	Subject
+SH3KBP1	Subject
+SHROOM2	Subject
+SHROOM4	Subject
+SLC10A3	Subject
+SLC16A2	Subject
+SLC25A14	Subject
+SLC25A43	Subject
+SLC25A5	Subject
+SLC25A53	Subject
+SLC35A2	Subject
+SLC38A5	Subject
+SLC9A6	Subject
+SLC9A7	Subject
+SMARCA1	Subject
+SMIM10	Subject
+SMPX	Subject
+SMS	Subject
+SNX12	Subject
+SOWAHD	Subject
+SPIN2A	Subject
+SPIN3	Subject
+SPRY3	Subject
+SRPK3	Subject
+SRPX	Subject
+SRPX2	Subject
+SSR4	Subject
+STAG2	Subject
+STARD8	Subject
+STEEP1	Subject
+SUV39H1	Subject
+SYN1	Subject
+SYP	Subject
+SYTL4	Subject
+SYTL5	Subject
+TAB3	Subject
+TAF1	Subject
+TAF7L	Subject
+TAF9B	Subject
+TAFAZZIN	Subject
+TBC1D25	Subject
+TBC1D8B	Subject
+TBL1X	Subject
+TCEAL1	Subject
+TCEAL2	Subject
+TCEAL3	Subject
+TCEAL4	Subject
+TCEAL7	Subject
+TCEAL8	Subject
+TENM1	Subject
+TFE3	Subject
+THOC2	Subject
+TIMM17B	Subject
+TIMM8A	Subject
+TIMP1	Subject
+TKTL1	Subject
+TLR7	Subject
+TLR8-AS1	Subject
+TMEM164	Subject
+TMEM185A	Subject
+TMEM187	Subject
+TMEM255A	Subject
+TMEM35A	Subject
+TMEM47	Subject
+TMLHE	Subject
+TMSB15A	Subject
+TMSB15B	Subject
+TREX2	Subject
+TRMT2B	Subject
+TRO	Subject
+TSC22D3	Subject
+TSPAN6	Subject
+TSPAN7	Subject
+TSPYL2	Subject
+TSR2	Subject
+UBE2A	Subject
+UBL4A	Subject
+UPF3B	Subject
+UPRT	Subject
+USP11	Subject
+USP51	Subject
+UTP14A	Subject
+UXT	Subject
+VAMP7	Subject
+VBP1	Subject
+VEGFD	Subject
+VGLL1	Subject
+VMA21	Subject
+WDR13	Subject
+WDR44	Subject
+WDR45	Subject
+WNK3	Subject
+WWC3	Subject
+XIAP	Subject
+XPNPEP2	Subject
+YIPF6	Subject
+YY2	Subject
+ZBTB33	Subject
+ZC3H12B	Subject
+ZC4H2	Subject
+ZDHHC15	Subject
+ZDHHC9	Subject
+ZMAT1	Subject
+ZMYM3	Subject
+ZNF182	Subject
+ZNF185	Subject
+ZNF275	Subject
+ZNF280C	Subject
+ZNF41	Subject
+ZNF449	Subject
+ZNF630	Subject
+ZNF674	Subject
+ZNF711	Subject
+ZNF75D	Subject
+ZNF81	Subject
+ZXDA	Subject
+ZXDB	Subject

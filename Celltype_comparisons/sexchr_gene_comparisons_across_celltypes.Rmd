@@ -1,0 +1,369 @@
+---
+title: "NPX, PAR, NPY cross cell type comparisons"
+author: "Laura Blanton"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = "") #enter root directory
+```
+
+#Setup annotations
+```{r}
+#v107 annotation
+geneAnno <- read.delim(file= paste0(myPath,"sca-immune/Annotations/geneAnno_proteinCoding_lncRNA_v107_20221021.txt"), stringsAsFactors = FALSE)[,c(2,1,3:6,8,14,9)]
+colnames(geneAnno)[c(1,4,5,6)] <- c("Gene","chr","start","stop")
+geneAnno <- geneAnno[! duplicated(geneAnno$gene_name.107) & ! geneAnno$gene_name.107 %in% c("") & ! duplicated(geneAnno$Gene),]
+geneAnno_x <- geneAnno[geneAnno$chr == "chrX",]
+geneAnno_y <- geneAnno[geneAnno$chr == "chrY",]
+X_genes_all <-as.character(geneAnno_x$Gene)
+Y_genes_all <-as.character(geneAnno_y$Gene)
+Y_genes_all <-c(Y_genes_all, "PRKY", "TXLNGY")
+sexChrom_genes <- c(X_genes_all,Y_genes_all)
+PAR1_genes <- geneAnno_x[geneAnno_x$start < 2691188,]$Gene
+PAR2_genes <- c("SPRY3","VAMP7","IL9R","WASH6P")
+PAR_genes_all <- c(PAR1_genes,PAR2_genes)
+NPX_genes <- X_genes_all[! X_genes_all %in% PAR_genes_all]
+NPY_genes <- Y_genes_all[! Y_genes_all %in% PAR_genes_all]
+autosome_genes <- geneAnno[! geneAnno$chr.107 %in% c("chrX","chrY"),"Gene"]
+protein_coding <- geneAnno[geneAnno$gene_type.84 == "protein_coding",]
+
+```
+
+#Import results files 
+```{r}
+#CD4+ and monocyte sex-linked results
+cd4.npx.par <- read.csv("/sca-immune/Sex_chromosomal_linear_regressions/cd4/CD4_regression_results_npx_par.txt", sep ="\t")
+cd4.npy <- read.csv("/sca-immune/Sex_chromosomal_linear_regressions/cd4/CD4_regression_results_npy.txt", sep ="\t")
+mono.npx.par <- read.csv("/sca-immune/Sex_chromosomal_linear_regressions/monocyte/mono_regression_results_npx_par.txt", sep ="\t")
+mono.npy <- read.csv("/sca-immune/Sex_chromosomal_linear_regressions/monocyte/mono_regression_results_npy.txt", sep ="\t")
+
+#LCL and fibroblast results files
+lcl.fib.npx.par <- read.csv("/sca-immune/Celltype_comparisons/SanRoman_2023_table_s2_npx_par_response_v107.txt", sep = "\t", row.names = "gene_name.84")[,c(1:43,56,57)]
+lcl.fib.npy <- read.csv("/sca-immune/Celltype_comparisons/SanRoman_2023_table_s4_npy_response_v107.txt", sep = "\t", row.names = "gene_name.84")
+lcl.fib.npx.par$gene <- rownames(lcl.fib.npx.par)
+lcl.fib.npy$gene <- rownames(lcl.fib.npy)
+```
+
+
+#Compare delta Ex across cell types
+```{r}
+#Match delta Ex values, gene by gene
+library(tidyverse)
+df_list <- list(cd4.npx.par, mono.npx.par, lcl.fib.npx.par)  
+dex <- df_list %>% purrr::reduce(full_join, by = 'gene')
+dex <- cbind(dex, geneAnno[match(dex$gene, geneAnno$Gene),])
+dex <- dex[, c("gene", "deltaEx.x", "deltaEx.y", "deltaEx_LCL", "deltaEx_Fib", "start")]
+colnames(dex) <- c("gene", "CD4+ T cell", "Monocyte", "LCL", "Fibroblast", "start")
+
+#write.table(dex, "npx.par_deltaEx_all_cell_types.txt", quote = F, sep = "\t")
+
+#Assign gene class annotations
+dex$annotation = "NPX"
+dex$annotation[dex$gene %in% c("KDM5C", "USP9X", "KDM6A", "ZFX","EIF1AX","DDX3X","RPS4X","PRKX", "TXLNG","TMSB4X")] <- "NPX, with NPY homolog"
+
+dex$annotation[dex$gene %in% PAR1_genes] <- "PAR"
+dex <- as.data.frame(dex)
+
+dex.par <- dex[dex$annotation == "PAR", ]
+dex.par <- pivot_longer(dex.par, cols = 2:5, names_to = "cell.type", values_to = "deltaEx")
+dex.par <- na.omit(dex.par)
+dex.par <- dex.par[order(dex.par$start),]
+
+#NPX genes with NPY homologs
+dex.npx_w_y <- dex[dex$annotation == "NPX, with NPY homolog",]
+dex.npx_w_y <- pivot_longer(dex.npx_w_y, cols = 2:5, names_to = "cell.type", values_to = "deltaEx")
+dex.npx_w_y <- na.omit(dex.npx_w_y)
+
+#NPX genes no NPY homologs
+dex.npx_wo_y <- dex[dex$annotation == "NPX",]
+dex.npx_wo_y <- pivot_longer(dex.npx_wo_y, cols = 2:5, names_to = "cell.type", values_to = "deltaEx")
+dex.npx_wo_y <- na.omit(dex.npx_wo_y)
+
+
+library(forcats)
+#Plot PAR genes
+p <-dex.par %>%
+  mutate(gene = fct_reorder(gene, start)) %>%
+    ggplot(aes(x = gene, y = deltaEx)) +
+    geom_boxplot(outlier.size = 0) + 
+    geom_point(aes(color = cell.type), size = 2) +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1),panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(colour = "black")) 
+
+ggsave("PAR_gene_deltaEx_four_cell_types.pdf", p, width=6, height=3.5, units="in", scale=1)
+
+#Plot NPX genes with NPY homologs
+p <- dex.npx_w_y %>%
+ mutate(gene = fct_reorder(gene, start)) %>% 
+    ggplot(aes(x = gene, y = deltaEx)) +
+    geom_boxplot(outlier.size = 0) + 
+    geom_point(aes(color = cell.type), size = 2) +
+    ylim(NA, 2.0) +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1),panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(colour = "black")) 
+
+ggsave("NPX_w_Y_gene_deltaEx_four_cell_types.pdf", p, width=6, height=3.5, units="in", scale=1)
+
+#Plot PAR and NPX genes together
+dex.npx.par <- dex[dex$annotation == "PAR" |dex$annotation == "NPX, with NPY homolog" ,]
+dex.npx.par <- pivot_longer(dex.npx.par, cols = 2:5, names_to = "cell.type", values_to = "deltaEx")
+dex.npx.par <- na.omit(dex.npx.par)
+
+#cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+p <-dex.npx.par %>%
+  mutate(gene = fct_reorder(gene, start)) %>%
+    ggplot(aes(x = gene, y = deltaEx)) +
+    geom_boxplot(outlier.size = 0) + 
+    geom_point(aes(color = cell.type), size = 2) +
+    scale_color_manual(values = c("CD4+ T cell" = "#56B4E9", "Fibroblast" = "#E69F00","LCL" = "#999999","Monocyte" = "#CC79A7")) +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1),panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(colour = "black")) 
+ggsave("NPX.PAR_gene_deltaEx_four_cell_types_by_gene.pdf", p, width=12, height=3.5, units="in", scale=1)
+
+#All NPX, PAR genes
+dex.longer <- pivot_longer(dex, cols = 2:5, names_to = "cell.type", values_to = "deltaEx")
+dex.longer <- na.omit(dex.longer)
+dex.longer <- dex.longer[!dex.longer$gene == "BEX1",]
+dex.longer$cell.type <- factor(dex.longer$cell.type,levels = c("CD4+ T cell", "Monocyte", "LCL", "Fibroblast"))
+dex.longer$annotation <- factor(dex.longer$annotation,levels = c("PAR", "NPX, with NPY homolog", "NPX"))
+dex.longer_to_plot <- dex.longer[dex.longer$deltaEx < 2,]
+
+p <- dex.longer_to_plot %>%
+    ggplot(aes(x = cell.type, y = deltaEx, fill = annotation)) +
+    geom_boxplot(outlier.size = 0) + 
+    #geom_point(size = 2) +
+    labs(title="delta Ex by gene class") +
+    scale_fill_manual(values = c("#009E73", "#0072B2","#D55E00")) +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1),panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(colour = "black"))
+ggsave("NPX.PAR_deltaEx_four_cell_types.pdf", p, width=6.5, height=3.5, units="in", scale=1)
+
+```
+
+#deltaEx stats
+```{r}
+#stats: means, standard deviations
+dex$average <- rowMeans(dex[, c(2:5)], na.rm=TRUE)
+dex$sd <- apply(dex[, c(2:5)],1,sd, na.rm = TRUE)
+
+#par stats: mean, standard deviations
+dex.par.avg <- mean(dex.par$deltaEx)
+dex.par.sd <- sd(dex.par$deltaEx)
+
+#NPX w/Y stats: mean, sd
+dex.npx_w_y.avg <- mean(dex.npx_w_y$deltaEx)
+dex.npx_w_y.sd <- sd(dex.npx_w_y$deltaEx)
+
+#NPX, no Y stats: mean, sd
+dex.npx_wo_y.avg <- mean(dex.npx_wo_y$deltaEx)
+dex.npx_wo_y.sd <- sd(dex.npx_wo_y$deltaEx)
+
+#PAR stats by cell type
+dex.par.cell.type.averages <- apply(dex[dex$annotation=="PAR", c(2:5)],2,mean, na.rm = TRUE)
+dex.par.cell.type.sd <- apply(dex[dex$annotation=="PAR", c(2:5)],2,sd, na.rm = TRUE)
+#NPX w/NPY homolog by cell type
+dex.npx_w_y.cell.type.averages <- apply(dex[dex$annotation=="NPX, with NPY homolog", c(2:5)],2,mean, na.rm = TRUE)
+dex.npx_w_y.cell.type.sd <- apply(dex[dex$annotation=="NPX, with NPY homolog", c(2:5)],2,sd, na.rm = TRUE)
+
+#PAR stats by gene
+rownames(dex) <- dex$gene
+dex.par.gene.averages <- apply(dex[dex$annotation=="PAR", c(2:5)],1,mean, na.rm = TRUE)
+dex.par.gene.type.sd <- apply(dex[dex$annotation=="PAR", c(2:5)],1,sd, na.rm = TRUE)
+
+dex.par.stats <- data.frame(gene = names(dex.par.gene.averages), mean = dex.par.gene.averages, sd = dex.par.gene.type.sd, gene.class = "PAR")
+dex.par.gene.stats.min <- dex.par.stats[dex.par.stats$mean>0.1,]
+dex.par.gene.stats.min <- na.omit(dex.par.gene.stats.min)
+dex.par.gene.stats.min$cov <-  dex.par.gene.stats.min$sd/(abs(dex.par.gene.stats.min$mean))
+dex.par.gene.cov <- dex.par.gene.type.sd/dex.par.gene.averages
+
+
+#NPX w/NPY homolog by gene
+dex.npx_w_y.gene.averages <- apply(dex[dex$annotation=="NPX, with NPY homolog", c(2:5)],1,mean, na.rm = TRUE)
+dex.npx_w_y.gene.sd <- apply(dex[dex$annotation=="NPX, with NPY homolog", c(2:5)],1,sd, na.rm = TRUE)
+
+dex.npx_w_y.stats <- data.frame(gene = names(dex.npx_w_y.gene.averages), mean = dex.npx_w_y.gene.averages, sd = dex.npx_w_y.gene.sd, gene.class = "NPX, with NPY homolog")
+dex.npx_w_y.stats.min <- dex.npx_w_y.stats[dex.npx_w_y.stats$mean>0.1,]
+dex.npx_w_y.stats.min <- na.omit(dex.npx_w_y.stats.min)
+dex.npx_w_y.stats.min$cov <-  dex.npx_w_y.stats.min$sd/(abs(dex.npx_w_y.stats.min$mean))
+dex.npx_w_y.gene.cov <- dex.npx_w_y.gene.sd/dex.npx_w_y.gene.averages
+
+
+#NPX w/no NPY homolog by gene
+dex.npx_wo_y.gene.averages <- apply(dex[dex$annotation=="NPX", c(2:5)],1,mean, na.rm = TRUE)
+dex.npx_wo_y.gene.sd <- apply(dex[dex$annotation=="NPX", c(2:5)],1,sd, na.rm = TRUE)
+
+
+```
+
+#Statifying by significance
+```{r}
+df_list <- list(cd4.npx.par, mono.npx.par, lcl.fib.npx.par)  
+dex <- df_list %>% reduce(full_join, by = 'gene')
+dex <- cbind(dex, geneAnno[match(dex$gene, geneAnno$Gene),])
+
+
+dex_padj <- dex[, c("gene", "deltaEx.x", "deltaEx.y", "deltaEx_LCL","deltaEx_Fib", "x_adj_pval.x","x_adj_pval.y", "x_adj_pval_LCL", "x_adj_pval_Fib", "start")]
+colnames(dex_padj) <- c("gene", "CD4_dEx", "Monocyte_dEx", "LCL_dEx", "Fibroblast_dEx", "CD4_adj_pval", "Monocyte_adj_pval", "LCL_adj_pval", "Fibroblast_adj_pval", "start")
+
+dex_padj$sig_summary <- 0
+dex_padj$sig_summary <- rowSums(dex_padj[,6:9]< 0.05, na.rm=TRUE)
+
+rownames(dex_padj) <- dex_padj$gene
+
+NPXwoY.sd_sig_sum <-  cbind(NPXwoY.sd, dex_padj[match(rownames(NPXwoY.sd), dex_padj$gene),])
+NPXwoY.sd_sig_sum <- NPXwoY.sd_sig_sum[,c(1,2,13)]
+NPXwoY.sd_sig_sum <- NPXwoY.sd_sig_sum[!rownames(NPXwoY.sd_sig_sum) == "PRKX-AS1",]
+
+p <- ggplot(NPXwoY.sd_sig_sum, aes(x=sig_summary, y=sd,  fill = sig_summary)) +
+  #geom_violin(trim=FALSE) + 
+  geom_jitter(width = 0.1)+
+  stat_summary(fun.data=mean_sdl, geom="pointrange", color="black") +
+  #scale_fill_manual(values=c("#28B463", "#2E86C1" )) +
+ # stat_pvalue_manual(stat.test, label = "p") +
+ # scale_y_continuous(expand = expansion(mult = c(0.05, 0.1))) +
+  labs( 
+      x= "Number of cell types with sig. dEx",
+      y= "standard deviation",
+      title = bquote("Standard deviation of dEx")
+      ) +
+    theme_classic() +
+    theme(
+      plot.title = ggtext::element_markdown(),
+      axis.text = element_text(color = "black"),
+      legend.position = "none"
+      )
+
+```
+
+
+
+#Compare deltaEy across cell types
+```{r}
+#deltaEy for NPY genes
+df_list <- list(cd4.npy, mono.npy, lcl.fib.npy)  
+dey <- df_list %>% reduce(full_join, by = 'gene')
+dey <- dey[, c("gene", "deltaEy.x", "deltaEy.y", "deltaEy_LCL", "deltaEy_Fib", "start")]
+colnames(dey) <- c("gene", "deltaEy.cd4", "deltaEy.mono", "deltaEy.lcl", "deltaEy.fib", "start")
+
+#deltaEy for sig NPY genes
+cd4.npy.sig <- cd4.npy[cd4.npy$y_adj_pval <0.05,]
+mono.npy.sig <- mono.npy[mono.npy$y_adj_pval <0.05,]
+lcl.npy.sig <- lcl.fib.npy[lcl.fib.npy$y_adj_pval_LCL <0.05,]
+fib.npy.sig <- lcl.fib.npy[lcl.fib.npy$y_adj_pval_Fib <0.05,]
+
+df_list <- list(cd4.npy.sig, mono.npy.sig, lcl.npy.sig, fib.npy.sig)  
+dey.sig <- df_list %>% reduce(full_join, by = 'gene')
+dey.sig <- dey.sig[, c("gene", "deltaEy.x", "deltaEy.y", "deltaEy_LCL.x", "deltaEy_Fib.y", "start.x")]
+colnames(dey.sig) <- c("gene", "deltaEy.cd4", "deltaEy.mono", "deltaEy.lcl", "deltaEy.fib", "start")
+
+
+#stats: means, standard deviations
+dey$average <- rowMeans(dey[, c(2:5)], na.rm=TRUE)
+dey$sd <- apply(dey[, c(2:5)],1,sd, na.rm = TRUE)
+dey$median <- apply(dey[, c(2:5)],1,median, na.rm = TRUE)
+
+#NPY stats by cell type
+dey.cell.type.averages <- apply(dey[, c(2:5)],2,mean, na.rm = TRUE)
+dey.cell.type.sd <- apply(dey[, c(2:5)],2,sd, na.rm = TRUE)
+
+
+dey.longer <- pivot_longer(dey, cols = 2:5, names_to = "cell.type", values_to = "deltaEy")
+#dey.longer <- na.omit(dey.longer)
+dey.sig.longer <- pivot_longer(dey.sig, cols = 2:5, names_to = "cell.type", values_to = "deltaEy")
+dey.sig.longer <- na.omit(dey.sig.longer)
+
+dey.broad <- na.omit(dey)
+dey.broad.longer <- pivot_longer(dey.broad, cols = 2:5, names_to = "cell.type", values_to = "deltaEy")
+dey.broad.longer.avg <- mean(dey.broad.longer$deltaEy)
+dey.broad.longer.med <- median(dey.broad.longer$deltaEy)
+dey.broad.longer.sd <- sd(dey.broad.longer$deltaEy)
+
+#deltaEy for PAR genes
+df_list <- list(cd4.npx.par, mono.npx.par, lcl.fib.npx.par)  
+dey.par <- df_list %>% reduce(full_join, by = 'gene')
+dey.par <- cbind(dey.par, geneAnno[match(dey.par$gene, geneAnno$Gene),])
+dey.par <- dey.par[, c("gene", "deltaEy.x", "deltaEy.y", "deltaEy_LCL", "deltaEy_Fib", "start")]
+colnames(dey.par) <- c("gene", "deltaEy.cd4", "deltaEy.mono", "deltaEy.lcl", "deltaEy.fib", "start")
+dey.par <- dey.par[dey.par$gene %in% PAR1_genes,] 
+
+#deltaEy for all NPX, PAR genes
+df_list <- list(cd4.npx.par, mono.npx.par, lcl.fib.npx.par)  
+dey.npx.par <- df_list %>% reduce(full_join, by = 'gene')
+dey.npx.par <- dey.npx.par[, c("gene", "deltaEy.x", "deltaEy.y", "deltaEy_LCL", "deltaEy_Fib", "start")]
+colnames(dey.npx.par) <- c("gene", "CD4+ T cell", "Monocyte", "LCL", "Fibroblast", "start")
+
+#Set up annotations
+dey.npx.par$annotation = "NPX"
+dey.npx.par$annotation[dex$gene %in% c("KDM5C", "USP9X", "KDM6A", "ZFX","EIF1AX","DDX3X","RPS4X","PRKX", "TXLNG")] <- "NPX, with NPY homolog"
+dey.npx.par$annotation[dey.npx.par$gene %in% PAR1_genes] <- "PAR"
+dey.npx.par <- as.data.frame(dey.npx.par)
+
+dey.npx.par.longer <- pivot_longer(dey.npx.par, cols = 2:5, names_to = "cell.type", values_to = "deltaEy")
+dey.npx.par.longer <- na.omit(dey.npx.par.longer)
+dey.npx.par.longer <- dey.npx.par.longer[!dey.npx.par.longer$gene == "BEX1",]
+
+
+p <- dey.longer %>%
+    ggplot(aes(x = gene, y = deltaEy)) +
+    geom_boxplot(outlier.size = 0) + 
+    geom_point(aes(color = cell.type), size = 2) +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1, size = 7),panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black" ), legend.title = element_text(size = 7), legend.text = element_text(size = 7)) + 
+    ylim(0,NA)
+ggsave("npy_sig_genes_deltaEy_four_cell_types.pdf", p, width=4.25, height=2.5, units="in", scale=1)
+
+
+```
+
+#deltaEy stats
+```{r}
+dey$average <- rowMeans(dey[, c(2:5)], na.rm=TRUE)
+dey$sd <- apply(dey[, c(2:5)],1,sd, na.rm = TRUE)
+
+deltaEy.sig.avg <- mean(dey.sig.longer$deltaEy)
+deltaEy.sig.sd <- sd(dey.sig.longer$deltaEy)
+deltaEy.sig.med <-median(dey.sig.longer$deltaEy)
+
+dey.cell.type.averages <- apply(dey[, c(2:5)],2,median, na.rm = TRUE)
+dey.cell.type.sd <- apply(dey[, c(2:5)],2,sd, na.rm = TRUE)
+
+#par stats: mean, standard deviations
+dey.par <- pivot_longer(dey.par, cols = 2:5, names_to = "cell.type", values_to = "deltaEy")
+dey.par <- na.omit(dey.par)
+dey.par <- dey.par[order(dey.par$start),]
+
+dey.par.avg <- mean(dey.par$deltaEy)
+dey.par.sd <- sd(dey.par$deltaEy)
+
+
+```
+
+
+#deltaEy histogram
+```{r}
+cairo_pdf("four_cell_npy_deltaEy_histogram.pdf", width = 3, height = 1.75)
+p <- ggplot(dey.longer, aes(x=deltaEy, color=cell.type, fill=cell.type)) +
+  #geom_histogram(aes(y=..density..), position="identity", alpha=0.4, binwidth=0.1)+
+  geom_density(alpha=0.4)+
+  scale_color_manual(values=c("indianred2","yellowgreen", "lightskyblue", "plum3"))+
+  scale_fill_manual(values=c("indianred2","yellowgreen", "lightskyblue", "plum3"))+
+  labs(title="Distribution of \u0394EY values in NPY genes",x="\u0394EY", y = "Density")+
+  theme_classic(base_size = 7)
+p
+dev.off()
+
+cairo_pdf("four_cell_npy_sig_deltaEy_histogram.pdf", width = 5, height = 3)
+p <- ggplot(dey.sig.longer, aes(x=deltaEy, color=cell.type, fill=cell.type)) +
+  #geom_histogram(aes(y=..density..), position="identity", alpha=0.4, binwidth=0.1)+
+  geom_density(alpha=0.4)+
+  scale_color_manual(values=c("indianred2","yellowgreen", "lightskyblue", "plum3"))+
+  scale_fill_manual(values=c("indianred2","yellowgreen", "lightskyblue", "plum3"))+
+  labs(title="Distribution of \u0394EY values in NPY genes",x="\u0394EY", y = "Density")+
+  theme_classic() +
+  xlim(0, NA)
+p
+dev.off()
+
+```
+

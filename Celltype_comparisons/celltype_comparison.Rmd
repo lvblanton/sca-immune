@@ -1,0 +1,978 @@
+---
+title: "NIH CD4 and monocyte cross-comparison"
+author: "Laura Blanton"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Setup annotations
+```{r}
+#annotation with v107 info
+geneAnno <- read.delim(file="/lab/page/adrianna/RNA-seq_to_share/20221021/Autosome_log2FoldChange_per_X_or_Y_calculations/geneAnno_proteinCoding_lncRNA_v107_20221021.txt", stringsAsFactors = FALSE)[,c(2,1,3:6,8,14,9)]
+colnames(geneAnno)[c(1,4,5,6)] <- c("Gene","chr","start","stop")
+geneAnno <- geneAnno[! duplicated(geneAnno$gene_name.107) & ! geneAnno$gene_name.107 %in% c("") & ! duplicated(geneAnno$Gene),]
+
+geneAnno_x <- geneAnno[geneAnno$chr == "chrX",]
+geneAnno_y <- geneAnno[geneAnno$chr == "chrY",]
+X_genes_all <-as.character(geneAnno_x$Gene)
+Y_genes_all <-as.character(geneAnno_y$Gene)
+sexChrom_genes <- c(X_genes_all,Y_genes_all)
+PAR1_genes <- geneAnno_x[geneAnno_x$start < 2691188,]$Gene
+PAR2_genes <- c("SPRY3","VAMP7","IL9R","WASH6P")
+PAR_genes_all <- c(PAR1_genes,PAR2_genes)
+NPX_genes <- X_genes_all[! X_genes_all %in% PAR_genes_all]
+NPY_genes <- Y_genes_all[! Y_genes_all %in% PAR_genes_all]
+autosome_genes <- geneAnno[! geneAnno$chr.107 %in% c("chrX","chrY"),"Gene"]
+
+```
+
+
+####Load CD4 and monocyte results
+```{r}
+#Import results files, already restricted to protein coding and lincRNA genes
+#setwd("/lab/solexa_page/laura/NIH_bulk_RNASeq")
+mono.x.response.auto <- read.csv("/lab/solexa_page/laura/NIH_bulk_RNASeq/220808_mono_autosomal_results/220808.mono_annotated_expressed_autosomal_pc.lincRNA_Xresponse.txt", sep = "\t")
+mono.y.response.auto <- read.csv("/lab/solexa_page/laura/NIH_bulk_RNASeq/220808_mono_autosomal_results/220808.mono_annotated_expressed_autosomal_pc.lincRNA_Yresponse.txt", sep = "\t")
+
+cd4.x.response.auto <- read.csv("/lab/solexa_page/laura/NIH_bulk_RNASeq/220808_cd4_autosomal_results/220808.cd4_annotated_expressed_autosomal_pc.lincRNA_Xresponse.txt", sep = "\t")
+cd4.y.response.auto <- read.csv("/lab/solexa_page/laura/NIH_bulk_RNASeq/220808_cd4_autosomal_results/220808.cd4_annotated_expressed_autosomal_pc.lincRNA_Yresponse.txt", sep = "\t")
+
+#CD4+ and monocyte sex-linked results
+cd4.npx.par <- read.csv("/lab/solexa_page/laura/NIH_bulk_RNASeq/220804_cd4_sex_linked_regression_results/CD4_regression_results_npx_par.txt", sep ="\t")
+cd4.npy <- read.csv("/lab/solexa_page/laura/NIH_bulk_RNASeq/220804_cd4_sex_linked_regression_results/CD4_regression_results_npy.txt", sep ="\t")
+
+mono.npx.par <- read.csv("/lab/solexa_page/laura/NIH_bulk_RNASeq/220808_monocyte_sex_linked_regression_results/mono_regression_results_npx_par.txt", sep ="\t")
+mono.npy <- read.csv("/lab/solexa_page/laura/NIH_bulk_RNASeq/220808_monocyte_sex_linked_regression_results/mono_regression_results_npy.txt", sep ="\t")
+
+cd4.npx.par$annotation = "NPX"
+cd4.npx.par$annotation[cd4.npx.par$gene %in% c("KDM5C", "USP9X", "KDM6A", "ZFX","EIF1AX","DDX3X","RPS4X","PRKX", "TXLNG", "NLGN4X", "TMSB4X")] <- "NPX, with Y homolog"
+cd4.npx.par$annotation[cd4.npx.par$gene %in% PAR1_genes] <- "PAR"
+
+mono.npx.par$annotation = "NPX"
+mono.npx.par$annotation[mono.npx.par$gene %in% c("KDM5C", "USP9X", "KDM6A", "ZFX","EIF1AX","DDX3X","RPS4X","PRKX", "TXLNG", "NLGN4X", "TMSB4X")] <- "NPX, with Y homolog"
+mono.npx.par$annotation[mono.npx.par$gene %in% PAR1_genes] <- "PAR"
+
+```
+
+#Load LCL and fibroblast data
+```{r}
+#Sex-linked responses
+lcl.fib.npx.par <- read.csv("/sca-immune/Celltype_comparisons/SanRoman_2023_table_s2_npx_par_response_v107.txt", sep = "\t")
+lcl.fib.npy <- read.csv("/sca-immune/Celltype_comparisons/SanRoman_2023_table_s4_npy_response_v107.txt", sep = "\t")
+
+####note that the "Gene" column in these files is the v107 gene name; we need to use the v84 names to align with the CD4 and monocyte gene names
+colnames(lcl.fib.npx.par)[which(names(lcl.fib.npx.par) == "gene_name.84")] <- "gene"
+colnames(lcl.fib.npy)[which(names(lcl.fib.npy) == "gene_name.84")] <- "gene"
+
+lcl.npx.par <- lcl.fib.npx.par[,c(1:22, 44:58)]
+lcl.npx.par.sig <- lcl.npx.par[lcl.npx.par$x_adj_pval_LCL < 0.05,]
+fib.npx.par <- lcl.fib.npx.par[,c(1, 23:58)]
+fib.npx.par.sig <- fib.npx.par[fib.npx.par$x_adj_pval_Fib < 0.05,]
+lcl.npy <- lcl.fib.npy[,c(1:22,44:56)]
+fib.npy <- lcl.fib.npy[,c(1,23:56)]
+
+#Autosomal responses
+res.lcl.fib.X.Y.response <- read.csv("/sca-immune/Celltype_comparisons/SanRoman_2024_lcl_fib_XandY_results_auto_expressed.txt", sep = "\t")
+
+####note that when initially loaded, "Gene" = v107 and "Gene.y" = v84; we again need to use v84 to compare to CD4s and monocytes
+colnames(res.lcl.fib.X.Y.response)[c(1,29)] <- c("gene_name.107", "Gene")
+lcl.auto <- res.lcl.fib.X.Y.response[,c(29,2:12,1,24:28,30,31)]
+fib.auto <- res.lcl.fib.X.Y.response[,c(29,13:23,1,24:28,30,31)]
+
+
+```
+
+#XCI calls
+```{r}
+###Read in calls for genes that are "subject" to or "escape" from X chromosome inactivation. Calls derived from San Roman et al., Cell Genomics 2014, Table S4
+xci <- read.csv(file = "/sca-immune/Celltype_comparisons/XCI_calls.txt", header = T, sep = "\t")
+names(xci)[1] <- "gene"
+
+xa.only.10genes <- c("CDKL5", "CTPS2", "F8",  "FHL1",  "MPP1",  "BEX3",  "PIN4",  "SPIN3", "TIMP1", "WWC3" , "NGFRAP1")
+```
+
+
+#Summary numbers of significantly Xi- or Y-responsive genes 
+```{r}
+#Subset NPX and PAR genes by significant responses to Xi (x_adj_pval) or Chr Y (y_adj_pval) dosage
+cd4.npx.par.sig <- cd4.npx.par[cd4.npx.par$x_adj_pval <0.05,]
+mono.npx.par.sig <- mono.npx.par[mono.npx.par$x_adj_pval <0.05,]
+cd4.npx.par.sig.y <- cd4.npx.par[cd4.npx.par$y_adj_pval <0.05,]
+mono.npx.par.sig.y <- mono.npx.par[mono.npx.par$y_adj_pval <0.05,]
+length(union(cd4.npx.par.sig$gene, mono.npx.par.sig$gene))
+
+#Number of unique NPX, PAR genes that are significantly responsive to Xi dosage
+length(Reduce(union, list(cd4.npx.par.sig$gene, mono.npx.par.sig$gene, cd4.npx.par.sig.y$gene, mono.npx.par.sig.y$gene)))
+
+cd4.npy.sig <- cd4.npy[cd4.npy$y_adj_pval < 0.05,]
+mono.npy.sig <- mono.npy[mono.npy$y_adj_pval < 0.05,]
+#Number of unique NPY genes that are significantly responsive to Chr Y dosage
+length(union(cd4.npy.sig$gene, mono.npy.sig$gene))
+
+#Number of unique NPX, PAR, and NPY genes that are significantly responsive to Xi and/or Chr Y dosage
+length(Reduce(union, list(cd4.npx.par.sig$gene, mono.npx.par.sig$gene, cd4.npx.par.sig.y$gene, mono.npx.par.sig.y$gene, cd4.npy.sig$gene, mono.npy.sig$gene)))
+
+#Subset PAR genes by significant responses to Xi (x_adj_pval) dosage
+cd4.par <- cd4.npx.par[cd4.npx.par$annotation == "PAR",]
+mono.par <- mono.npx.par[mono.npx.par$annotation == "PAR",]
+cd4.par.sig <- cd4.par[cd4.par$x_adj_pval <0.05 | cd4.par$y_adj_pval < 0.05,]
+mono.par.sig <- mono.par[mono.par$x_adj_pval <0.05 | mono.par$y_adj_pval < 0.05,]
+length(union(cd4.par$gene, mono.par$gene))
+length(union(cd4.par.sig$gene, mono.par.sig$gene))
+
+#Subset NPX genes with NPY homolog by significant responses to Xi (x_adj_pval) dosage
+cd4.npx.w.y <- cd4.npx.par[cd4.npx.par$annotation == "NPX, with Y homolog",]
+mono.npx.w.y <- mono.npx.par[mono.npx.par$annotation == "NPX, with Y homolog",]
+cd4.npx.w.y.sig <- cd4.npx.w.y[cd4.npx.w.y$x_adj_pval <0.05 | cd4.npx.w.y$y_adj_pval < 0.05,]
+mono.npx.w.y.sig <- mono.npx.w.y[mono.npx.w.y$x_adj_pval <0.05 | mono.npx.w.y$y_adj_pval < 0.05,]
+length(union(cd4.npx.w.y$gene, mono.npx.w.y$gene))
+length(union(cd4.npx.w.y.sig$gene, mono.npx.w.y.sig$gene))
+
+#Subset NPX genes by significant responses to Xi (x_adj_pval) dosage
+cd4.npx <- cd4.npx.par[cd4.npx.par$annotation == "NPX",]
+mono.npx <- mono.npx.par[mono.npx.par$annotation == "NPX",]
+cd4.npx.sig <- cd4.npx[cd4.npx$x_adj_pval <0.05 | cd4.npx$y_adj_pval < 0.05,]
+mono.npx.sig <- mono.npx[mono.npx$x_adj_pval <0.05 | mono.npx$y_adj_pval < 0.05,]
+length(union(cd4.npx$gene, mono.npx$gene))
+length(union(cd4.npx.sig$gene, mono.npx.sig$gene))
+
+#Number of unique autosomal genes significantly responsive to Xi and/or Chr Y dosage
+cd4.x.response.auto.sig <- cd4.x.response.auto[cd4.x.response.auto$padj < 0.05,]
+mono.x.response.auto.sig <- mono.x.response.auto[mono.x.response.auto$padj < 0.05,]
+cd4.y.response.auto.sig <- cd4.y.response.auto[cd4.y.response.auto$padj < 0.05,]
+mono.y.response.auto.sig <- mono.y.response.auto[mono.y.response.auto$padj < 0.05,]
+x.union <- union(cd4.x.response.auto.sig$Gene, mono.x.response.auto.sig$Gene)
+y.union <- union(cd4.y.response.auto.sig$Gene, mono.y.response.auto.sig$Gene)
+length(union(x.union, y.union))
+
+
+```
+
+#CD4 vs. monocyte: sex chromosomal genes responses to Xi or Chr Y dosage
+```{r}
+#Compare deltaEx values for NPX and PAR genes between CD4+ T cells and monocytes
+cd4.mono.npx.par <- merge(cd4.npx.par, mono.npx.par, by = 'gene')
+cor.test(cd4.mono.npx.par$deltaEx.x, cd4.mono.npx.par$deltaEx.y, method = "pearson")
+cor.test(cd4.mono.npx.par$deltaEx.x, cd4.mono.npx.par$deltaEx.y, method = "pearson")$p.value
+
+#Compare deltaEy values for NPY genes between CD4+ T cells and monocytes
+cd4.mono.npy <- merge(cd4.npy, mono.npy, by = 'gene')
+cor.test(cd4.mono.npy$deltaEy.x, cd4.mono.npy$deltaEy.y, method = "pearson")
+
+#Exclude outliers with inflated delta Ex values (due to low expression, and thus small intercepts)
+cd4.mono.npx.par.to_plot <- cd4.mono.npx.par[!cd4.mono.npx.par$gene %in% c("ZFX-AS1", "PRKX-AS1", "EIF1AX-AS1", "ASMTL-AS1"),]
+
+#Parse genes by XCI status 
+cd4.mono.npx.par.xci <- merge(cd4.mono.npx.par, xci, by = "gene")
+cd4.mono.npx.par.xi.expr <- cd4.mono.npx.par.xci[cd4.mono.npx.par.xci$Final_XCI_Call == "Escape",]
+cd4.mono.npx.par.xa.only <- cd4.mono.npx.par.xci[cd4.mono.npx.par.xci$Final_XCI_Call == "Subject",]
+
+##Deming confidence intervals
+source("/sca-immune/Rfunctions/Function_makeSymmetric_X_Y.R")
+source("/sca-immune/Rfunctions/Function_getMaxMin.R")
+source("/sca-immune/Function_paper2_corrPlot_deming_20230419.R")
+
+###all NPX, PAR genes
+myData <- cd4.mono.npx.par.to_plot[,c("gene","deltaEx.x", "deltaEx_err.x", "x_adj_pval.x", "deltaEx.y", "deltaEx_err.y", "x_adj_pval.y")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_text_err(myData, myTitle = "cd4.monocyte.npx.par_no_cd4_outliers_deming_err.pdf", myXlab = "CD4+ T cell (dEX)", myYlab = "Monocyte (dEX)", myPlotTitle = "dEX: CD4+ vs. monocyte", myWidth=2.4, myHeight=2.4, demingBehind = TRUE,  myYlim = c(-0.05, 1.25), myXlim=c(-0.05, 1.25))
+
+###Xi-expressed genes
+myData <- cd4.mono.npx.par.xi.expr[,c("gene","deltaEx.x", "deltaEx_err.x", "x_adj_pval.x", "deltaEx.y", "deltaEx_err.y", "x_adj_pval.y")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_text_err(myData, myTitle = "cd4.monocyte.xi_expr_deming_err.pdf", myXlab = "CD4+ T cell (dEX)", myYlab = "Monocyte (dEX)", myPlotTitle = "dEX: CD4+ vs. monocyte", myWidth=2.4, myHeight=2.4, demingBehind = TRUE,  myYlim = c(-0.05, 1.25), myXlim=c(-0.05, 1.25))
+
+###Xa-only genes
+myData <- cd4.mono.npx.par.xa.only[,c("gene","deltaEx.x", "deltaEx_err.x", "x_adj_pval.x", "deltaEx.y", "deltaEx_err.y", "x_adj_pval.y")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_text_err_noCI(myData, myTitle = "cd4.monocyte.xa_only_deming_err_noCI.pdf", myXlab = "CD4+ T cell (dEX)", myYlab = "Monocyte (dEX)", myPlotTitle = "dEX: CD4+ vs. monocyte", myWidth=2.4, myHeight=2.4, demingBehind = TRUE,  myYlim = c(-0.05, 1.25), myXlim=c(-0.05, 1.25))
+
+
+###NPY genes
+myData <- cd4.mono.npy[,c("gene","deltaEy.x", "deltaEy_err.x", "y_adj_pval.x", "deltaEy.y", "deltaEy_err.y", "y_adj_pval.y")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_text_err_noCI(myData, myTitle = "cd4.monocyte.npy_deming_err.pdf", myXlab = "CD4+ T cell (dEY)", myYlab = "Monocyte (dEY)", myPlotTitle = "dEY: CD4+ vs. monocyte", myWidth=2.4, myHeight=2.4, demingBehind = TRUE,  myYlim = c(-0.05, 1.25), myXlim=c(-0.05, 1.25))
+
+
+```
+
+#CD4 vs. monocyte: autosomal gene responses to Xi or Chr Y dosage
+```{r}
+library(ggplot2)
+library(ggpubr)
+library(deming)
+library(SimplyAgree)
+library(ggtext)
+library(glue)
+source("/sca-immune/Function_paper2_corrPlot_deming_20230419.R")
+
+###CD4+ T cells vs. Monocyte, response to Xi dosage
+cd4.mono.X.auto <- merge(cd4.x.response.auto, mono.x.response.auto, by = "Gene")
+cd4.mono.X.auto.sig <- cd4.mono.X.auto[cd4.mono.X.auto$padj.x <0.05 | cd4.mono.X.auto$padj.y < 0.05,]
+
+#all genes expressed in both cell types 
+myData <- cd4.mono.X.auto[,c("Gene","log2FoldChange.x", "lfcSE.x", "padj.x", "log2FoldChange.y", "lfcSE.y", "padj.y")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_err(myData, myTitle = "cd4.mono.autosomalXresponse.plot.pdf", myXlab = "CD4+ T cells (log2FC)", myYlab = "Monocytes (log2FC)", myPlotTitle = "Autosomal response, Chr X dosage: significant responders", myWidth=2.25, myHeight=2.25, demingBehind = TRUE)
+
+#filtered to significantly Xi-responsive genes
+myData <- cd4.mono.X.auto.sig[,c("Gene","log2FoldChange.x", "lfcSE.x", "padj.x", "log2FoldChange.y", "lfcSE.y", "padj.y")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_err(myData, myTitle = "cd4.mono.autosomalXresponse.sig.plot.pdf", myXlab = "CD4+ T cells (log2FC)", myYlab = "Monocytes (log2FC)", myPlotTitle = "Autosomal response, Chr X dosage: significant responders", myWidth = 2, myHeight = 2, demingBehind = TRUE)
+
+
+###CD4+ T cells vs. Monocyte, response to Y dosage
+cd4.mono.Y.auto <- merge(cd4.y.response.auto, mono.y.response.auto, by = "Gene")
+cd4.mono.Y.auto.sig <- cd4.mono.Y.auto[cd4.mono.Y.auto$padj.x <0.05 | cd4.mono.Y.auto$padj.y < 0.05,]
+
+#all genes expressed in both cell types
+myData <- cd4.mono.Y.auto[,c("Gene","log2FoldChange.x", "lfcSE.x", "padj.x", "log2FoldChange.y", "lfcSE.y", "padj.y")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_err(myData, myTitle = "cd4.mono.autosomalYresponse.plot.pdf", myXlab = "CD4+ T cells (log2FC)", myYlab = "Monocytes (log2FC)", myPlotTitle = "Autosomal response to Chr Y dosage: CD4+ vs. monocyte", myWidth=2.25, myHeight=2.25, demingBehind = TRUE)
+
+#filtered to significantly Y-responsive genes
+myData <- cd4.mono.Y.auto.sig[,c("Gene","log2FoldChange.x", "lfcSE.x", "padj.x", "log2FoldChange.y", "lfcSE.y", "padj.y")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_err(myData, myTitle = "cd4.mono.autosomalYresponse.sig.plot.pdf", myXlab = "CD4+ T cells (log2FC)", myYlab = "Monocytes (log2FC)", myPlotTitle = "Autosomal response, Chr Y dosage: significant responders",myWidth=2, myHeight=2, demingBehind = TRUE)
+
+```
+
+#CD4 vs. LCLs: sex chromosomal genes responses to Xi or Chr Y dosage
+```{r}
+#Compare deltaEx values for NPX and PAR genes between CD4+ T cells and LCLs
+cd4.lcl.npx.par <- merge(cd4.npx.par, lcl.npx.par, by = "gene")
+cor.test(cd4.lcl.npx.par$deltaEx, cd4.lcl.npx.par$deltaEx_LCL, method = "pearson")
+cor.test(cd4.lcl.npx.par$deltaEx, cd4.lcl.npx.par$deltaEx_LCL, method = "pearson")$p.value
+
+#Compare deltaEy values for NPY genes between CD4+ T cells and LCLs
+cd4.lcl.npy <- merge(cd4.npy, lcl.npy, by = "gene")
+cor.test(cd4.lcl.npy$deltaEy, cd4.lcl.npy$deltaEy_LCL, method = "pearson")
+
+##Deming confidence intervals
+source("/sca-immune/Rfunctions/Function_makeSymmetric_X_Y.R")
+source("/sca-immune/Rfunctions/Function_getMaxMin.R")
+source("/sca-immune/Rfunctions/Function_paper2_corrPlot_deming_20230419.R")
+
+cd4.lcl.npx.par.xci <- merge(cd4.lcl.npx.par, xci, by = "gene")
+cd4.lcl.npx.par.xi.expr <- cd4.lcl.npx.par.xci[cd4.lcl.npx.par.xci$Final_XCI_Call == "Escape",]
+cd4.lcl.npx.par.xa.only <- cd4.lcl.npx.par.xci[cd4.lcl.npx.par.xci$Final_XCI_Call == "Subject",]
+
+###all NPX, PAR genes
+myData <- cd4.lcl.npx.par[,c("gene","deltaEx", "deltaEx_err", "x_adj_pval", "deltaEx_LCL", "deltaEx_err_LCL", "x_adj_pval_LCL")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_text_err(myData, myTitle = "cd4.lcl.npx.par_deming_err.pdf", myXlab = "CD4+ T cell (dEX)", myYlab = "LCL (dEX)", myPlotTitle = "dEX: CD4+ vs. LCL", myWidth=2.4, myHeight=2.4, demingBehind = TRUE,  myYlim = c(-0.05, 1.8), myXlim=c(-0.05, 1.8))
+
+
+###Xi-expressed genes
+myData <- cd4.lcl.npx.par.xi.expr[,c("gene","deltaEx", "deltaEx_err", "x_adj_pval", "deltaEx_LCL", "deltaEx_err_LCL", "x_adj_pval_LCL")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+myData <- na.omit(myData)
+paper2_corrPlot_deming_text_err(myData, myTitle = "cd4.lcl.xi_expr_deming_err.pdf", myXlab = "CD4+ T cell (dEX)", myYlab = "LCL (dEX)", myPlotTitle = "dEX: CD4+ vs. LCL", myWidth=2.4, myHeight=2.4, demingBehind = TRUE,  myYlim = c(-0.05, 1.25), myXlim=c(-0.05, 1.25))
+
+###Xa-only genes
+myData <- cd4.lcl.npx.par.xa.only[,c("gene","deltaEx", "deltaEx_err", "x_adj_pval", "deltaEx_LCL", "deltaEx_err_LCL", "x_adj_pval_LCL")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+myData <- na.omit(myData)
+paper2_corrPlot_deming_text_err(myData, myTitle = "cd4.lcl.xa_only_deming_err_noCI.pdf", myXlab = "CD4+ T cell (dEX)", myYlab = "LCL (dEX)", myPlotTitle = "dEX: CD4+ vs. LCL", myWidth=2.4, myHeight=2.4, demingBehind = TRUE,  myYlim = c(-0.05, 1.25), myXlim=c(-0.05, 1.25))
+
+
+###NPY genes
+myData <- cd4.lcl.npy[,c("gene","deltaEy", "deltaEy_err", "y_adj_pval", "deltaEy_LCL", "deltaEy_err_LCL", "y_adj_pval_LCL")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_text_err_noCI(myData, myTitle = "cd4.lcl.npy_deming_err.pdf", myXlab = "CD4+ T cell (dEY)", myYlab = "LCL (dEY)", myPlotTitle = "dEY: CD4+ vs. LCL", myWidth=2.4, myHeight=2.4, demingBehind = TRUE,  myYlim = c(-0.05, 1.6), myXlim=c(-0.05, 1.6))
+
+
+```
+
+#CD4 vs. LCLs: autosomal gene responses to Xi or Chr Y dosage
+```{r}
+###CD4+ T cells vs. LCLs, autosomal gene response to Xi dosage
+cd4.lcl.Xresponse <- merge(cd4.x.response.auto, lcl.auto, by = 'Gene')
+cd4.lcl.Xresponse_to_plot <- cd4.lcl.Xresponse[!cd4.lcl.Xresponse$Gene == "OVCH1-AS1",]
+
+myData <- cd4.lcl.Xresponse_to_plot[,c("Gene","log2FoldChange", "lfcSE", "padj", "lcl_log2FC_X", "lcl_lfcSE_X", "lcl_padj_X")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_err(myData, myTitle = "cd4.lcl.autosomalXresponse_deming_err.pdf", myXlab = "CD4+ T cell (log2FC)", myYlab = "LCL (log2FC)", myPlotTitle = "Autosomal response to Chr X dosage: CD4+ vs. LCL", myWidth=2.25, myHeight=2.25, demingBehind = TRUE)
+
+
+###CD4+ T cells vs. LCLs, autosomal gene response to Y dosage
+cd4.lcl.Yresponse <- merge(cd4.y.response.auto, lcl.auto, by = 'Gene')
+cd4.lcl.Yresponse_to_plot <- cd4.lcl.Yresponse[!cd4.lcl.Yresponse$Gene == "OVCH1-AS1",]
+
+myData <- cd4.lcl.Yresponse_to_plot[,c("Gene","log2FoldChange", "lfcSE", "padj", "lcl_log2FC_Y", "lcl_lfcSE_Y", "lcl_padj_Y")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_err(myData, myTitle = "cd4.lcl.autosomalYresponse_deming_err.pdf", myXlab = "CD4+ T cell (log2FC)", myYlab = "LCL (log2FC)", myPlotTitle = "Autosomal response to Chr Y dosage: CD4+ vs. LCL", myWidth=2.25, myHeight=2.25, demingBehind = TRUE)
+
+```
+
+
+#CD4 vs. fibroblast: sex chromosomal gene responses to Xi or Chr Y dosage
+```{r}
+#Compare deltaEx values for NPX and PAR genes between CD4+ T cells and fibroblasts
+cd4.fib.npx.par <- merge(cd4.npx.par, fib.npx.par, by = "gene")
+cor.test(cd4.fib.npx.par$deltaEx, cd4.fib.npx.par$deltaEx_Fib, method = "pearson")
+cor.test(cd4.fib.npx.par$deltaEx, cd4.fib.npx.par$deltaEx_Fib, method = "pearson")$p.value
+
+#Compare deltaEy values for NPY genes between CD4+ T cells and fibroblasts
+cd4.fib.npy <- merge(cd4.npy, fib.npy, by = "gene")
+cor.test(cd4.fib.npy$deltaEy, cd4.fib.npy$deltaEy_Fib, method = "pearson")
+
+
+cd4.fib.npx.par.xci <- merge(cd4.fib.npx.par, xci, by = "gene")
+cd4.fib.npx.par.xi.expr <- cd4.fib.npx.par.xci[cd4.fib.npx.par.xci$Final_XCI_Call == "Escape",]
+cd4.fib.npx.par.xa.only <- cd4.fib.npx.par.xci[cd4.fib.npx.par.xci$Final_XCI_Call == "Subject",]
+
+###plot with Deming confidence intervals
+###all NPX, PAR genes
+myData <- cd4.fib.npx.par[,c("gene","deltaEx", "deltaEx_err", "x_adj_pval", "deltaEx_Fib", "deltaEx_err_Fib", "x_adj_pval_Fib")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_text_err(myData, myTitle = "cd4.fib.npx.par_deming_err.pdf", myXlab = "CD4+ T cell (dEX)", myYlab = "Fibroblast (dEX)", myPlotTitle = "dEX: CD4+ vs. Fibroblast", myWidth=2.4, myHeight=2.4, demingBehind = TRUE,  myYlim = c(-0.05, 1.5), myXlim=c(-0.05, 1.5))
+
+###Xi-expressed genes
+myData <- cd4.fib.npx.par.xi.expr[,c("gene","deltaEx", "deltaEx_err", "x_adj_pval", "deltaEx_Fib", "deltaEx_err_Fib", "x_adj_pval_Fib")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+myData <- na.omit(myData)
+paper2_corrPlot_deming_text_err(myData, myTitle = "cd4.fib.xi_expr_deming_err.pdf", myXlab = "CD4+ T cell (dEX)", myYlab = "Fibroblast (dEX)", myPlotTitle = "dEX: CD4+ vs. Fibroblast", myWidth=2.4, myHeight=2.4, demingBehind = TRUE,  myYlim = c(-0.05, 1.25), myXlim=c(-0.05, 1.25))
+
+###Xa-only genes
+myData <- cd4.fib.npx.par.xa.only[,c("gene","deltaEx", "deltaEx_err", "x_adj_pval", "deltaEx_Fib", "deltaEx_err_Fib", "x_adj_pval_Fib")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+myData <- na.omit(myData)
+paper2_corrPlot_deming_text_err(myData, myTitle = "cd4.fib.xa_only_deming_err.pdf", myXlab = "CD4+ T cell (dEX)", myYlab = "Fibroblast (dEX)", myPlotTitle = "dEX: CD4+ vs. Fibroblast", myWidth=2.4, myHeight=2.4, demingBehind = TRUE,  myYlim = c(-0.05, 1.25), myXlim=c(-0.05, 1.25))
+
+
+###NPY genes
+myData <- cd4.fib.npy[,c("gene","deltaEy", "deltaEy_err", "y_adj_pval", "deltaEy_Fib", "deltaEy_err_Fib", "y_adj_pval_Fib")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_text_err_noCI(myData, myTitle = "cd4.fib.npy_deming_err.pdf", myXlab = "CD4+ T cell (dEY)", myYlab = "Fibroblast (dEY)", myPlotTitle = "dEY: CD4+ vs. Fibroblast", myWidth=2.4, myHeight=2.4, demingBehind = TRUE,  myYlim = c(-0.05, 1.6), myXlim=c(-0.05, 1.6))
+
+
+```
+
+#CD4 vs. fibroblast: autosomal gene responses to Xi or Chr Y dosage
+```{r}
+###CD4+ T cells vs. fibroblasts, autosomal gene response to Xi dosage
+cd4.fib.Xresponse <- merge(cd4.x.response.auto, fib.auto, by = "Gene")
+cor.test(cd4.fib.Xresponse$log2FoldChange.x, cd4.fib.Xresponse$log2FoldChange.y, method = "pearson")
+
+cd4.fib.Xresponse_to_plot <- cd4.fib.Xresponse[!cd4.fib.Xresponse$Gene == "OVCH1-AS1",]
+myData <- cd4.fib.Xresponse_to_plot[,c("Gene","log2FoldChange", "lfcSE", "padj", "fib_log2FC_X", "fib_lfcSE_X", "fib_padj_X")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_err(myData, myTitle = "cd4.fib.autosomalXresponse_deming_err.pdf", myXlab = "CD4+ T cell (log2FC)", myYlab = "Fibroblast (log2FC)", myPlotTitle = "Autosomal response to Chr X dosage: CD4+ vs. Fibroblast", myWidth=2.25, myHeight=2.25, demingBehind = TRUE)
+
+
+###CD4+ T cells vs. fibroblasts, autosomal gene response to Y dosage
+cd4.fib.Yresponse <- merge(cd4.y.response.auto, fib.auto, by = "Gene")
+cor.test(cd4.fib.Yresponse$log2FoldChange.x, cd4.fib.Yresponse$log2FoldChange.y, method = "pearson")
+
+cd4.fib.Yresponse_to_plot <- cd4.fib.Yresponse[!cd4.fib.Yresponse$Gene == "OVCH1-AS1",]
+myData <- cd4.fib.Yresponse_to_plot[,c("Gene","log2FoldChange", "lfcSE", "padj", "fib_log2FC_Y", "fib_lfcSE_Y", "fib_padj_Y")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_err(myData, myTitle = "cd4.fib.autosomalYresponse_deming_err.pdf", myXlab = "CD4+ T cell (log2FC)", myYlab = "Fibroblast (log2FC)", myPlotTitle = "Autosomal response to Chr Y dosage: CD4+ vs. Fibroblast", myWidth=2.25, myHeight=2.25, demingBehind = TRUE)
+
+```
+
+#Monocyte vs. LCL: sex chromosomal gene responses to Xi or Chr Y dosage
+```{r}
+#Compare deltaEx values for NPX and PAR genes between monocytes and LCLs
+mono.lcl.npx.par <- merge(mono.npx.par, lcl.npx.par, by = 'gene')
+cor.test(mono.lcl.npx.par$deltaEx, mono.lcl.npx.par$deltaEx_LCL, method = "pearson")
+cor.test(mono.lcl.npx.par$deltaEx, mono.lcl.npx.par$deltaEx_LCL, method = "pearson")$p.value
+
+#Compare deltaEy values for NPY genes between monocytes and LCLs
+mono.lcl.npy <- merge(mono.npy, lcl.npy, by = 'gene')
+cor.test(mono.lcl.npy$deltaEy, mono.lcl.npy$deltaEy_LCL, method = "pearson")
+
+
+mono.lcl.npx.par.xci <- merge(mono.lcl.npx.par, xci, by = "gene")
+mono.lcl.npx.par.xi.expr <- mono.lcl.npx.par.xci[mono.lcl.npx.par.xci$Final_XCI_Call == "Escape",]
+mono.lcl.npx.par.xa.only <- mono.lcl.npx.par.xci[mono.lcl.npx.par.xci$Final_XCI_Call == "Subject",]
+
+###plot with Deming confidence intervals
+###all NPX, PAR genes
+myData <- mono.lcl.npx.par[,c("gene","deltaEx", "deltaEx_err", "x_adj_pval", "deltaEx_LCL", "deltaEx_err_LCL", "x_adj_pval_LCL")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+myData <- na.omit(myData)
+paper2_corrPlot_deming_text_err(myData, myTitle = "mono.lcl.npx.par_deming_err.pdf", myXlab = "Monocyte (dEX)", myYlab = "LCL (dEX)", myPlotTitle = "dEX: Monocyte vs. LCL", myWidth=2.4, myHeight=2.4, demingBehind = TRUE,  myYlim = c(-0.05, 1.8), myXlim=c(-0.05, 1.8))
+
+###Xi-expressed genes
+myData <- mono.lcl.npx.par.xi.expr[,c("gene","deltaEx", "deltaEx_err", "x_adj_pval", "deltaEx_LCL", "deltaEx_err_LCL", "x_adj_pval_LCL")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+myData <- na.omit(myData)
+paper2_corrPlot_deming_text_err(myData, myTitle = "mono.lcl.xi_expr_deming_err.pdf", myXlab = "Monocyte (dEX)", myYlab = "LCL (dEX)", myPlotTitle = "dEX: Monocyte vs. LCL", myWidth=2.4, myHeight=2.4, demingBehind = TRUE,  myYlim = c(-0.05, 1.25), myXlim=c(-0.05, 1.25))
+
+###Xa-only genes
+myData <- mono.lcl.npx.par.xa.only[,c("gene","deltaEx", "deltaEx_err", "x_adj_pval", "deltaEx_LCL", "deltaEx_err_LCL", "x_adj_pval_LCL")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+myData <- na.omit(myData)
+paper2_corrPlot_deming_text_err_noCI(myData, myTitle = "mono.lcl.xa_only_deming_err_noCI.pdf", myXlab = "Monocyte (dEX)", myYlab = "LCL (dEX)", myPlotTitle = "dEX: Monocyte vs. LCL", myWidth=2.4, myHeight=2.4, demingBehind = TRUE,  myYlim = c(-0.05, 1.25), myXlim=c(-0.05, 1.25))
+
+###NPY genes
+myData <- mono.lcl.npy[,c("gene","deltaEy", "deltaEy_err", "y_adj_pval", "deltaEy_LCL", "deltaEy_err_LCL", "y_adj_pval_LCL")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_text_err_noCI(myData, myTitle = "mono.lcl.npy_deming_err.pdf", myXlab = "Monocyte (dEY)", myYlab = "LCL (dEY)", myPlotTitle = "dEY: Monocyte vs. LCL", myWidth=2.4, myHeight=2.4, demingBehind = TRUE,  myYlim = c(-0.05, 1.6), myXlim=c(-0.05, 1.6))
+```
+
+#Monocyte vs. LCLs: autosomal genes responses to Xi or Chr Y dosage
+```{r}
+###Monocytes vs. LCLs, autosomal gene response to Xi dosage
+mono.lcl.Xresponse <- merge(mono.x.response.auto, lcl.auto, by = "Gene")
+myData <- mono.lcl.Xresponse[,c("Gene","log2FoldChange", "lfcSE", "padj", "lcl_log2FC_X", "lcl_lfcSE_X", "lcl_padj_X")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_err(myData, myTitle = "mono.lcl.autosomalXresponse_deming_err.pdf", myXlab = "Monocyte (log2FC)", myYlab = "LCL (log2FC)", myPlotTitle = "Autosomal response to Chr X dosage: Monocyte vs. LCL", myWidth=2.25, myHeight=2.25, demingBehind = TRUE)
+
+###Monocytes vs. LCLs, autosomal gene response to Y dosage
+mono.lcl.Yresponse <- merge(mono.y.response.auto, lcl.auto, by = 'Gene')
+myData <- mono.lcl.Yresponse[,c("Gene","log2FoldChange", "lfcSE", "padj", "lcl_log2FC_Y", "lcl_lfcSE_Y", "lcl_padj_Y")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_err(myData, myTitle = "mono.lcl.autosomalYresponse_deming_err.pdf", myXlab = "Monocyte (log2FC)", myYlab = "LCL (log2FC)", myPlotTitle = "Autosomal response to Chr Y dosage: Monocyte vs. LCL", myWidth=2.25, myHeight=2.25, demingBehind = TRUE)
+```
+
+
+#Monocyte vs. fibroblast: sex chromosomal gene responses to Xi or Chr Y dosage
+```{r}
+#Compare deltaEx values for NPX and PAR genes between monocytes and fibroblasts
+mono.fib.npx.par <- merge(mono.npx.par, fib.npx.par, by = 'gene')
+cor.test(mono.fib.npx.par$deltaEx, mono.fib.npx.par$deltaEx_Fib, method = "pearson")
+cor.test(mono.fib.npx.par$deltaEx, mono.fib.npx.par$deltaEx_Fib, method = "pearson")$p.value
+
+#Compare deltaEy values for NPY genes between monocytes and fibroblasts
+mono.fib.npy <- merge(mono.npy, fib.npy, by = 'gene')
+cor.test(mono.fib.npy$deltaEy, mono.fib.npy$deltaEy_Fib, method = "pearson")
+mono.fib.npx.par.xci <- merge(mono.fib.npx.par, xci, by = "gene")
+mono.fib.npx.par.xi.expr <- mono.fib.npx.par.xci[mono.fib.npx.par.xci$Final_XCI_Call == "Escape",]
+mono.fib.npx.par.xa.only <- mono.fib.npx.par.xci[mono.fib.npx.par.xci$Final_XCI_Call == "Subject",]
+
+###plot with Deming confidence intervals
+###all NPX, PAR genes
+myData <- mono.fib.npx.par[,c("gene","deltaEx", "deltaEx_err", "x_adj_pval", "deltaEx_Fib", "deltaEx_err_Fib", "x_adj_pval_Fib")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_text_err(myData, myTitle = "mono.fib.npx.par_deming_err.pdf", myXlab = "Monocyte (dEX)", myYlab = "Fibroblast (dEX)", myPlotTitle = "dEX: Monocyte vs. Fibroblast", myWidth=2.4, myHeight=2.4, demingBehind = TRUE,  myYlim = c(-0.05, 1.5), myXlim=c(-0.05, 1.5))
+
+###Xi-expressed genes
+myData <- mono.fib.npx.par.xi.expr[,c("gene","deltaEx", "deltaEx_err", "x_adj_pval", "deltaEx_Fib", "deltaEx_err_Fib", "x_adj_pval_Fib")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+myData <- na.omit(myData)
+paper2_corrPlot_deming_text_err(myData, myTitle = "mono.fib.xi_expr_deming_err.pdf", myXlab = "Monocyte (dEX)", myYlab = "Fibroblast (dEX)", myPlotTitle = "dEX: Monocyte vs. Fibroblast", myWidth=2.4, myHeight=2.4, demingBehind = TRUE,  myYlim = c(-0.05, 1.25), myXlim=c(-0.05, 1.25))
+
+###Xa-only genes
+myData <- mono.fib.npx.par.xa.only[,c("gene","deltaEx", "deltaEx_err", "x_adj_pval", "deltaEx_Fib", "deltaEx_err_Fib", "x_adj_pval_Fib")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+myData <- na.omit(myData)
+paper2_corrPlot_deming_text_err(myData, myTitle = "mono.fib.xa_only_deming_err.pdf", myXlab = "Monocyte (dEX)", myYlab = "Fibroblast (dEX)", myPlotTitle = "dEX: Monocyte vs. Fibroblast", myWidth=2.4, myHeight=2.4, demingBehind = TRUE,  myYlim = c(-0.05, 1.25), myXlim=c(-0.05, 1.25))
+
+###NPY genes
+myData <- mono.fib.npy[,c("gene","deltaEy", "deltaEy_err", "y_adj_pval", "deltaEy_Fib", "deltaEy_err_Fib", "y_adj_pval_Fib")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_text_err_noCI(myData, myTitle = "mono.fib.npy_deming_err.pdf", myXlab = "Monocyte (dEY)", myYlab = "Fibroblast (dEY)", myPlotTitle = "dEY: Monocyte vs. Fibroblast", myWidth=2.4, myHeight=2.4, demingBehind = TRUE,  myYlim = c(-0.05, 1.6), myXlim=c(-0.05, 1.6))
+```
+
+#Monocyte vs. fibroblast: autosomal gene responses to Xi or Chr Y dosage
+```{r}
+###Monocytes vs. fibroblasts, autosomal gene response to Xi dosage
+mono.fib.Xresponse <- merge(mono.x.response.auto, fib.auto, by = "Gene")
+cor.test(mono.fib.Xresponse$log2FoldChange.x, mono.fib.Xresponse$log2FoldChange.y, method = "pearson")
+
+myData <- mono.fib.Xresponse[,c("Gene","log2FoldChange", "lfcSE", "padj", "fib_log2FC_X", "fib_lfcSE_X", "fib_padj_X")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_err(myData, myTitle = "mono.fib.autosomalXresponse_deming_err.pdf", myXlab = "Monocyte (log2FC)", myYlab = "Fibroblast (log2FC)", myPlotTitle = "Autosomal response to Chr X dosage: Monocyte vs. Fibroblast", myWidth=2.25, myHeight=2.25, demingBehind = TRUE)
+
+###Monocytes vs. fibroblasts, autosomal gene response to Y dosage
+mono.fib.Yresponse <- merge(mono.y.response.auto, fib.auto, by = "Gene")
+cor.test(mono.fib.Yresponse$log2FoldChange.x, mono.fib.Yresponse$log2FoldChange.y, method = "pearson")
+
+myData <- mono.fib.Yresponse[,c("Gene","log2FoldChange", "lfcSE", "padj", "fib_log2FC_Y", "fib_lfcSE_Y", "fib_padj_Y")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_err(myData, myTitle = "mono.fib.autosomalYresponse_deming_err.pdf", myXlab = "Monocyte (log2FC)", myYlab = "Fibroblast (log2FC)", myPlotTitle = "Autosomal response to Chr Y dosage: Monocyte vs. Fibroblast", myWidth=2.25, myHeight=2.25, demingBehind = TRUE)
+```
+
+#LCL vs. fibroblasts: sex chromosomal gene responses to Xi or Chr Y dosage
+```{r}
+lcl.fib.npx.par.xci <- merge(lcl.fib.npx.par, xci, by = "Gene")
+lcl.fib.npx.par.xi.expr <- lcl.fib.npx.par.xci[lcl.fib.npx.par.xci$Final_XCI_Call == "Escape",]
+lcl.fib.npx.par.xa.only <- lcl.fib.npx.par.xci[lcl.fib.npx.par.xci$Final_XCI_Call == "Subject",]
+
+###plot with Deming confidence intervals
+#all NPX, PAR genes
+myData <- lcl.fib.npx.par[,c("gene","deltaEx_LCL", "deltaEx_err_LCL", "x_adj_pval_LCL", "deltaEx_Fib", "deltaEx_err_Fib", "x_adj_pval_Fib")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_text_err(myData, myTitle = "lcl.fib.npx.par_deming_err.pdf", myXlab = "LCL (dEX)", myYlab = "Fibroblast (dEX)", myPlotTitle = "dEX: LCL vs. Fibroblast", myWidth=2.4, myHeight=2.4, demingBehind = TRUE,  myYlim = c(-0.05, 1.5), myXlim=c(-0.05, 1.5))
+
+###Xi-expressed genes
+myData <- lcl.fib.npx.par.xi.expr[,c("gene","deltaEx_LCL", "deltaEx_err_LCL", "x_adj_pval_LCL",  "deltaEx_Fib", "deltaEx_err_Fib", "x_adj_pval_Fib")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+myData <- na.omit(myData)
+paper2_corrPlot_deming_text_err(myData, myTitle = "lcl.fib.xi_expr_deming_err.pdf", myXlab = "LCL (dEX)", myYlab = "Fibroblast (dEX)", myPlotTitle = "dEX: LCL vs. Fibroblast", myWidth=2.4, myHeight=2.4, demingBehind = TRUE,  myYlim = c(-0.05, 1.25), myXlim=c(-0.05, 1.25))
+
+###Xa-only genes
+myData <- lcl.fib.npx.par.xa.only[,c("gene","deltaEx_LCL", "deltaEx_err_LCL", "x_adj_pval_LCL",  "deltaEx_Fib", "deltaEx_err_Fib", "x_adj_pval_Fib")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+myData <- na.omit(myData)
+paper2_corrPlot_deming_text_err(myData, myTitle = "lcl.fib.xa_only_deming_err.pdf", myXlab = "LCL (dEX)", myYlab = "Fibroblast (dEX)", myPlotTitle = "dEX: LCL vs. Fibroblast", myWidth=2.4, myHeight=2.4, demingBehind = TRUE,  myYlim = c(-0.05, 1.25), myXlim=c(-0.05, 1.25))
+
+
+```
+
+
+#Merge expression datasets
+```{r}
+library(tidyverse)
+library(purrr)
+npx.par_list <- list(cd4.npx.par, mono.npx.par, lcl.fib.npx.par)
+npx.par <- npx.par_list %>% purrr::reduce(full_join, by='gene')
+npx.par <- na.omit(npx.par)
+
+npx.par.x.padj <- npx.par[,c("Gene", "x_adj_pval.x","x_adj_pval.y", "x_adj_pval_Fib", "x_adj_pval_LCL", "Human_NPY", "region")]
+colnames(npx.par.x.padj)[c(2:5)] <- c("CD4+ T cells","Monocytes","Fibroblasts","LCLs")
+npx.par.x.padj$region[npx.par.x.padj$Gene %in% c("KDM5C", "USP9X", "KDM6A", "ZFX","EIF1AX","DDX3X","RPS4X","PRKX", "TXLNG","TMSB4X")] <- "NPX, with Y homolog"
+npx.par.x.padj <- npx.par.x.padj[!npx.par.x.padj$Gene %in% c("VAMP7", "WASH6P"),]
+
+
+npy_list <- list(cd4.npy, mono.npy, lcl.fib.npy)
+npy <- npy_list %>% reduce(full_join, by='gene')
+npy <- na.omit(npy)
+
+npx <- npx.par[!npx.par$gene %in% PAR_genes_all,]
+par <- npx.par[npx.par$gene %in% PAR_genes_all,]
+npx_w_y <- npx.par[npx.par$gene %in% c("KDM5C", "USP9X", "KDM6A", "ZFX","EIF1AX","DDX3X","RPS4X","PRKX", "TXLNG",  "TMSB4X"),]
+npx_wo_y <- npx[!npx$gene %in% c("KDM5C", "USP9X", "KDM6A", "ZFX","EIF1AX","DDX3X","RPS4X","PRKX", "TXLNG", "TMSB4X"),]
+
+#all x genes
+cd4.npx.par.sig <- npx.par[npx.par$x_adj_pval.x < 0.05,]
+mono.npx.par.sig <- npx.par[npx.par$x_adj_pval.y < 0.05,]
+fib.npx.par.sig <- npx.par[npx.par$x_adj_pval_Fib < 0.05,]
+lcl.npx.par.sig <- npx.par[npx.par$x_adj_pval_LCL < 0.05,]
+
+#npx only
+cd4.npx.sig <- npx[npx$x_adj_pval.x < 0.05,]
+mono.npx.sig <- npx[npx$x_adj_pval.y < 0.05,]
+fib.npx.sig <- npx[npx$x_adj_pval_Fib < 0.05,]
+lcl.npx.sig <- npx[npx$x_adj_pval_LCL < 0.05,]
+
+#par only
+cd4.par.sig <- par[par$x_adj_pval.x < 0.05,]
+mono.par.sig <- par[par$x_adj_pval.y < 0.05,]
+fib.par.sig <- par[par$x_adj_pval_Fib < 0.05,]
+lcl.par.sig <- par[par$x_adj_pval_LCL < 0.05,]
+
+#npx with y homologs
+cd4.npx_w_y.sig <- npx_w_y[npx_w_y$x_adj_pval.x < 0.05,]
+mono.npx_w_y.sig <- npx_w_y[npx_w_y$x_adj_pval.y < 0.05,]
+fib.npx_w_y.sig <- npx_w_y[npx_w_y$x_adj_pval_Fib < 0.05,]
+lcl.npx_w_y.sig <- npx_w_y[npx_w_y$x_adj_pval_LCL < 0.05,]
+
+#npx with no y homologs
+cd4.npx_wo_y.sig <- npx_wo_y[npx_wo_y$x_adj_pval.x < 0.05,]
+mono.npx_wo_y.sig <- npx_wo_y[npx_wo_y$x_adj_pval.y < 0.05,]
+fib.npx_wo_y.sig <- npx_wo_y[npx_wo_y$x_adj_pval_Fib < 0.05,]
+lcl.npx_wo_y.sig <- npx_wo_y[npx_wo_y$x_adj_pval_LCL < 0.05,]
+
+#npy
+cd4.npy.sig <- npy[npy$y_adj_pval.x < 0.05,]
+mono.npy.sig <- npy[npy$y_adj_pval.y < 0.05,]
+fib.npy.sig <- npy[npy$y_adj_pval_Fib < 0.05,]
+lcl.npy.sig <- npy[npy$y_adj_pval_LCL < 0.05,]
+
+#autosomal X response
+auto_list <- list(cd4.x.response.auto,mono.x.response.auto,res.lcl.fib.X.Y.response)
+auto <- auto_list %>% purrr::reduce(full_join, by='Gene')
+auto <- na.omit(auto)
+
+
+cd4.auto.sig <- auto[auto$padj.x < 0.05,]
+mono.auto.sig <- auto[auto$padj.y < 0.05,]
+fib.auto.sig <- auto[auto$fib_padj_X < 0.05,]
+lcl.auto.sig <- auto[auto$lcl_padj_X < 0.05,]
+
+auto.x.padj <- auto[,c("Gene", "padj.x","padj.y", "fib_padj_X", "lcl_padj_X")]
+colnames(auto.x.padj)[c(2:5)] <- c("CD4+ T cells","Monocytes","Fibroblasts","LCLs")
+
+#autosomal Y response
+auto_list <- list(cd4.y.response.auto,mono.y.response.auto,res.lcl.fib.X.Y.response)
+auto.y <- auto_list %>% purrr::reduce(full_join, by='Gene')
+auto.y <- na.omit(auto.y)
+
+cd4.auto.y.sig <- auto.y[auto.y$padj.x < 0.05,]
+mono.auto.y.sig <- auto.y[auto.y$padj.y < 0.05,]
+fib.auto.y.sig <- auto.y[auto.y$fib_padj_Y < 0.05,]
+lcl.auto.y.sig <- auto.y[auto.y$lcl_padj_Y < 0.05,]
+
+#just cd4s vs. monocyte, shared gene expression for npx and par
+cd4.mono.npx.par <- merge(cd4.npx.par, mono.npx.par, by = 'gene')
+cd4.npx.par.2way.sig <- cd4.mono.npx.par[cd4.mono.npx.par$x_adj_pval.x < 0.05,]
+mono.npx.par.2.waysig <- cd4.mono.npx.par[cd4.mono.npx.par$x_adj_pval.y < 0.05,]
+
+#just cd4s vs. monocyte, shared gene expression for autosomal X response
+cd4.mono.Xresponse <- merge(cd4.x.response.auto, mono.x.response.auto, by = "Gene")
+cd4.auto.x.2way.sig <- cd4.mono.Xresponse[cd4.mono.Xresponse$padj.x < 0.05,]
+mono.auto.x.2way.sig <- cd4.mono.Xresponse[cd4.mono.Xresponse$padj.y < 0.05,]
+
+#just cd4s vs. monocyte, shared gene expression for autosomal Y response
+cd4.mono.Yresponse <- merge(cd4.y.response.auto, mono.y.response.auto, by = "Gene")
+cd4.auto.y.2way.sig <- cd4.mono.Yresponse[cd4.mono.Yresponse$padj.x < 0.05,]
+mono.auto.y.2way.sig <- cd4.mono.Yresponse[cd4.mono.Yresponse$padj.y < 0.05,]
+
+```
+
+#UpSet Plots
+```{r}
+library(UpSetR)
+library(ComplexUpset)
+
+adj.pvals = colnames(npx.par.x.padj)[2:5]
+npx.par.x.padj$sig_summary <- rowSums(npx.par.x.padj[,2:5]< 0.05, na.rm=TRUE)
+npx.par.x.padj <- npx.par.x.padj[!npx.par.x.padj$sig_summary == 0,]
+npx.par.x.padj[adj.pvals] = npx.par.x.padj[adj.pvals] < 0.05
+
+
+pdf(file = "four.cell.npx.par_by_gene_class_upset.pdf", width = 10, height = 4)
+ComplexUpset::upset(
+    npx.par.x.padj,
+    adj.pvals,
+    base_annotations=list('Intersection size'=intersection_size(
+      mapping=aes(fill=region)) +
+      scale_fill_manual(values=c('#D55E00','#009E73', '#0072B2'))
+      ),
+    width_ratio=0.3,
+    #sort_intersections_by=c('degree', 'cardinality',),
+    sort_intersections=FALSE,
+    intersections=list(
+        'LCLs',
+        'Fibroblasts',
+        'CD4+ T cells',
+        'Monocytes',
+        c('Monocytes', 'Fibroblasts'),
+        c('CD4+ T cells', 'Fibroblasts'),
+        c('CD4+ T cells', 'LCLs'),
+        c('CD4+ T cells', 'Monocytes', 'Fibroblasts'),
+        c('LCLs', 'Monocytes', 'Fibroblasts'),
+        c('LCLs', 'CD4+ T cells', 'Fibroblasts'),
+        c('LCLs', 'CD4+ T cells', 'Fibroblasts', 'Monocytes')
+    ),
+    sort_sets='ascending',
+     queries=list(
+        upset_query(set='CD4+ T cells', fill="#56B4E9"),
+        upset_query(set='Monocytes', fill="#CC79A7"),
+        upset_query(set='LCLs', fill="#999999"),
+        upset_query(set='Fibroblasts', fill="#E69F00")
+    ),
+    set_sizes=(
+        upset_set_size(position = 'right') +
+         theme(axis.text.x=element_text(angle=45))
+    )
+)
+dev.off()
+
+#autosomal x 
+fourcellsig <- list(cd4.auto.sig$Gene, mono.auto.sig$Gene, fib.auto.sig$Gene, lcl.auto.sig$Gene)
+names(fourcellsig) <- c("CD4+ T cell","Monocytes","Fibroblasts", "LCLs")
+fourcell.auto.x <- euler(fourcellsig)$original.values
+
+pdf(file = "four.cell.autosomal_x_upset.pdf", width = 4, height = 2)
+upset(fromExpression(fourcell.auto.x),
+       text.scale = 1,
+      sets.bar.color = c("#999999", "#E69F00", "#56B4E9", "#CC79A7" ),
+      mb.ratio = c(0.6, 0.4))
+dev.off()
+
+#autosomal y
+fourcellsig <- list(cd4.auto.y.sig$Gene, mono.auto.y.sig$Gene, fib.auto.y.sig$Gene, lcl.auto.y.sig$Gene)
+names(fourcellsig) <- c("CD4+ T cell","Monocytes","Fibroblasts", "LCLs")
+fourcell.auto.y <- euler(fourcellsig)$original.values
+
+pdf(file = "four.cell.autosomal_y_upset.pdf", width = 4, height = 2)
+upset(fromExpression(fourcell.auto.y),
+       text.scale = 1,
+      sets.bar.color = c("#999999", "#E69F00", "#56B4E9", "#CC79A7" ),
+      mb.ratio = c(0.6, 0.4))
+dev.off()
+
+
+```
+
+#Calculate Coefficients of Variation
+```{r}
+#calculate CV for delta Ex values across cell types
+npx.par.dex <- npx.par[,c("Gene", "deltaEx.x","deltaEx.y", "deltaEx_Fib", "deltaEx_LCL")]
+colnames(npx.par.dex)[c(2:5)] <- c("CD4+ T cells","Monocytes","Fibroblasts","LCLs")
+npx.par.dex.mean <- apply(npx.par.dex[, c(2:5)],1,mean, na.rm = TRUE)
+npx.par.dex.sd <- apply(npx.par.dex[, c(2:5)],1,sd, na.rm = TRUE)
+npx.par.dex.cov <- npx.par.dex.sd/(abs(npx.par.dex.mean))
+
+#calculate CV for delta Ey values of NPX, PAR genesacross cell types
+npx.par.dey <- npx.par[,c("Gene", "deltaEy.x","deltaEy.y", "deltaEy_Fib", "deltaEy_LCL")]
+colnames(npx.par.dey)[c(2:5)] <- c("CD4+ T cells","Monocytes","Fibroblasts","LCLs")
+npx.par.dey.mean <- apply(npx.par.dey[, c(2:5)],1,mean, na.rm = TRUE)
+npx.par.dey.sd <- apply(npx.par.dey[, c(2:5)],1,sd, na.rm = TRUE)
+npx.par.dey.cov <- npx.par.dey.sd/(abs(npx.par.dey.mean))
+
+#calculate CV of delta Ey values of NPY genes across cell types 
+npy.dey <- npy[,c("Gene", "deltaEy.x","deltaEy.y", "deltaEy_Fib", "deltaEy_LCL")]
+colnames(npy.dey)[c(2:5)] <- c("CD4+ T cells","Monocytes","Fibroblasts","LCLs")
+npy.dey.mean <- apply(npy.dey[, c(2:5)],1,mean, na.rm = TRUE)
+npy.dey.sd <- apply(npy.dey[, c(2:5)],1,sd, na.rm = TRUE)
+npy.dey.cov <- npy.dey.sd/(abs(npy.dey.mean))
+
+#calculate CV of delta Ex values of NPY genes across cell types 
+npy.dex <- npy[,c("Gene", "deltaEx.x","deltaEx.y", "deltaEx_Fib", "deltaEx_LCL")]
+colnames(npy.dex)[c(2:5)] <- c("CD4+ T cells","Monocytes","Fibroblasts","LCLs")
+npy.dex.mean <- apply(npy.dex[, c(2:5)],1,mean, na.rm = TRUE)
+npy.dex.sd <- apply(npy.dex[, c(2:5)],1,sd, na.rm = TRUE)
+npy.dex.cov <- npy.dex.sd/(abs(npy.dex.mean))
+
+#calculate CV for autosomal X responses across cell types
+auto.X.logFC <- auto[,c("Gene", "log2FoldChange.x","log2FoldChange.y", "fib_log2FC_X", "lcl_log2FC_X")] 
+colnames(auto.X.logFC)[c(2:5)] <- c("CD4+ T cells","Monocytes","Fibroblasts","LCLs")
+auto.X.logFC.mean <- apply(auto.X.logFC[, c(2:5)],1,mean, na.rm = TRUE)
+auto.X.logFC.sd <- apply(auto.X.logFC[, c(2:5)],1,sd, na.rm = TRUE)
+auto.X.logFC.cov <- auto.X.logFC.sd/(abs(auto.X.logFC.mean))
+
+#calculate CV for autosomal Y responses across cell types
+auto.Y.logFC <- auto.y[,c("Gene", "log2FoldChange.x","log2FoldChange.y", "fib_log2FC_Y", "lcl_log2FC_Y")] 
+colnames(auto.Y.logFC)[c(2:5)] <- c("CD4+ T cells","Monocytes","Fibroblasts","LCLs")
+auto.Y.logFC.mean <- apply(auto.Y.logFC[, c(2:5)],1,mean, na.rm = TRUE)
+auto.Y.logFC.sd <- apply(auto.Y.logFC[, c(2:5)],1,sd, na.rm = TRUE)
+auto.Y.logFC.cov <- auto.Y.logFC.sd/(abs(auto.Y.logFC.mean))
+
+#summarize gene information, including CVs of delta Ex and delta Ey, and gene class
+npx.par.dex.stats <- data.frame(gene = npx.par.dex$Gene, abs.mean = abs(npx.par.dex.mean), cov = npx.par.dex.cov, gene.class = "All NPX, PAR", response = "deltaEx")
+npx.par.dey.stats <- data.frame(gene = npx.par.dey$Gene, abs.mean = abs(npx.par.dey.mean), cov = npx.par.dey.cov, gene.class = "All NPX, PAR", response = "deltaEy")
+
+npy.dey.stats <- data.frame(gene = npy.dey$Gene, abs.mean = abs(npy.dey.mean), cov = npy.dey.cov, gene.class = "NPY", response = "deltaEy")
+npy.dex.stats <- data.frame(gene = npy.dex$Gene, abs.mean = abs(npy.dex.mean), cov = npy.dex.cov, gene.class = "NPY", response = "deltaEx")
+
+#summarize gene information, including CVs, for autosomal gene responses to Chr X and Y
+auto.stats <- data.frame(gene = auto.X.logFC$Gene, abs.mean = abs(auto.X.logFC.mean), cov = auto.X.logFC.cov, gene.class = "Autosomal", response = "Chr X")
+auto.y.stats <- data.frame(gene = auto.Y.logFC$Gene, abs.mean = abs(auto.Y.logFC.mean), cov = auto.Y.logFC.cov, gene.class = "Autosomal", response = "Chr Y")
+```
+
+#CVs: different effect size thresholds 
+```{r}
+#Define thresholds of absolute mean effect size to test 
+thresholds <- c(0.001, 0.005, 0.0025, 0.01, 0.025, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3)
+
+cv.stats <- data.frame(threshold= numeric(),dex.genes=numeric(),auto.genes = numeric(),dex.mean=numeric(), auto.mean = numeric(), pval = numeric(), cov.mean.ratio = numeric())
+
+#For each threshold, assess difference between NPX, PAR gene CVs and autosomal CVs (for responses to Xi dosage)
+for(threshold in thresholds){
+  rowname <- paste0("effect_", threshold)
+  dex.stats.min <- npx.par.dex.stats[npx.par.dex.stats$abs.mean > threshold,]
+  auto.stats.min <- auto.stats[auto.stats$abs.mean > threshold,]
+  dat <- rbind(dex.stats.min, auto.stats.min)
+  dat <- na.omit(dat)
+  
+  dex.genes <- dim(dex.stats.min)[1]
+  auto.genes <- dim(auto.stats.min)[1]
+  dex.mean <- mean(dex.stats.min$cov)
+  auto.mean <- mean(auto.stats.min$cov)
+  pval <- t.test(cov ~ gene.class, data = dat)$p.value
+  
+  cov.mean.ratio <- auto.mean/dex.mean
+
+  #build results into table  
+  cv.stats[rowname,] <- c(threshold,dex.genes,auto.genes,dex.mean, auto.mean,pval,cov.mean.ratio)
+}
+
+p.adjust(6.720039e-10, method = "fdr", n = 6)
+p.adjust(9.972900e-08, method = "fdr", n = 6)
+p.adjust(3.021963e-09, method = "fdr", n = 6)
+
+#For each threshold, assess difference between NPX, PAR gene CVs and autosomal CVs (for responses to Chr Y dosage)
+cv.stats.y <- data.frame(threshold= numeric(), dey.genes=numeric(),auto.genes = numeric(),dey.mean=numeric(), auto.mean = numeric(), pval = numeric(), cov.mean.ratio = numeric())
+
+for(threshold in thresholds){
+  rowname <- paste0("effect_", threshold)
+  dey.stats.min <- npy.dey.stats[npy.dey.stats$abs.mean > threshold,]
+  auto.stats.min <- auto.stats[auto.stats$abs.mean > threshold,]
+  dat <- rbind(dey.stats.min, auto.stats.min)
+  dat <- na.omit(dat)
+  
+  dey.genes <- dim(dey.stats.min)[1]
+  auto.genes <- dim(auto.stats.min)[1]
+  dey.mean <- mean(dey.stats.min$cov)
+  auto.mean <- mean(auto.stats.min$cov)
+  pval <- t.test(cov ~ gene.class, data = dat)$p.value
+  
+  cov.mean.ratio <- auto.mean/dey.mean
+
+  #build results into table  
+  cv.stats.y[rowname,] <- c(threshold,dey.genes,auto.genes,dey.mean, auto.mean,pval,cov.mean.ratio)
+}
+
+p.adjust(3.973572e-13, method = "fdr", n = 6)
+p.adjust(1.537922e-07, method = "fdr", n = 6)
+p.adjust(5.721314e-10, method = "fdr", n = 6)
+
+
+#Pull out genes with at least 0.01, 0.1, and 0.25 |avg. mean effect size| to plot 
+dex.stats.01 <- npx.par.dex.stats[npx.par.dex.stats$abs.mean > 0.01,]
+auto.stats.01 <- auto.stats[auto.stats$abs.mean > 0.01,]
+dex.stats.1 <- npx.par.dex.stats[npx.par.dex.stats$abs.mean > 0.1,]
+auto.stats.1 <- auto.stats[auto.stats$abs.mean > 0.1,]
+dex.stats.25 <- npx.par.dex.stats[npx.par.dex.stats$abs.mean > 0.25,]
+auto.stats.25 <- auto.stats[auto.stats$abs.mean > 0.25,]
+
+dey.stats.01 <- npy.dey.stats[npy.dey.stats$abs.mean > 0.01,]
+auto.y.stats.01 <- auto.y.stats[auto.y.stats$abs.mean > 0.01,]
+dey.stats.1 <- npy.dey.stats[npy.dey.stats$abs.mean > 0.1,]
+auto.y.stats.1 <- auto.y.stats[auto.y.stats$abs.mean > 0.1,]
+dey.stats.25 <- npy.dey.stats[npy.dey.stats$abs.mean > 0.25,]
+auto.y.stats.25 <- auto.y.stats[auto.y.stats$abs.mean > 0.25,]
+
+dex.stats.01$effect.size <- "0.01"
+auto.stats.01$effect.size <- "0.01"
+dex.stats.1$effect.size <- "0.1"
+auto.stats.1$effect.size <- "0.1"
+dex.stats.25$effect.size <- "0.25"
+auto.stats.25$effect.size <- "0.25"
+
+dey.stats.01$effect.size <- "0.01"
+auto.y.stats.01$effect.size <- "0.01"
+dey.stats.1$effect.size <- "0.1"
+auto.y.stats.1$effect.size <- "0.1"
+dey.stats.25$effect.size <- "0.25"
+auto.y.stats.25$effect.size <- "0.25"
+
+#Combine different threshold dataframes
+dat.x.y <- rbind(dex.stats.01, auto.stats.01,dex.stats.1, auto.stats.1, dex.stats.25, auto.stats.25,dey.stats.01, auto.y.stats.01, dey.stats.1, auto.y.stats.1, dey.stats.25, auto.y.stats.25)
+dat.x.y$cov <- as.numeric(dat.x.y$cov)
+
+#Plot CVs, by effect size threshold and gene class 
+dat.x.y <- dat.x.y %>%
+  mutate(response=factor(response,levels=c("deltaEx","deltaEy","Chr X", "Chr Y")) )
+p <- ggplot(dat.x.y, aes(x=effect.size, y=cov,  fill = response)) +
+  geom_boxplot(outlier.size = 0) +
+  scale_y_cut(
+    c(3),which=c(2, 1), scales=c(3, 1))+
+  scale_fill_manual(values=c("#D55E00", "#7570B3", "#E69F0080", "#7570B370")) +
+  labs( 
+      x= "Effect size",
+      y= "Coefficient of Variation",
+      title = bquote("Coefficient of Variation: response to Xi or Chr Y by gene class")
+      ) +
+  scale_x_discrete(labels=c("0.01" = ">0.01", "0.1" = ">0.1",
+                              "0.25" = ">0.25"))+
+  theme_classic(base_size = 7) +
+  theme(
+    plot.title = ggtext::element_markdown(),
+    axis.text = element_text(color = "black"),
+    #legend.position = "none"
+      )
+ggsave("CV_NPX_PAR_NPY_AutosomalX_AutosomalY_diff_thresholds.pdf",p, width=4, height=2.25, units="in", scale=1)
+
+
+```
+
+
+#Parse CVs by XCI status
+```{r}
+xci <- read.csv(file = "/sca-immune/Celltype_comparisons/XCI_calls.txt", header = T, sep = "\t")
+names(xci)[1] <- "Gene"
+
+xi.expr <- na.omit(xci[xci$Final_XCI_Call == "Escape", ])
+xa.only <- na.omit(xci[xci$Final_XCI_Call == "Subject",])
+
+#Parse the delta Ex values of NPX and PAR genes by XCI status
+npx.par.dex.stats.xi.expr <- npx.par.dex.stats[npx.par.dex.stats$gene %in% xi.expr$Gene,]
+npx.par.dex.stats.xa.only <- npx.par.dex.stats[npx.par.dex.stats$gene %in% xa.only$Gene,]
+npx.par.dex.stats.all <- npx.par.dex.stats[npx.par.dex.stats$abs.mean > 0.1,]
+
+npx.par.dex.stats.xi.expr$gene.class <- "Xi-expressed"
+npx.par.dex.stats.xa.only$gene.class <- "Xa-only expressed"
+
+#Parse the delta Ey values of NPX and PAR genes by XCI status
+npx.par.dey.stats.xi.expr <- npx.par.dey.stats[npx.par.dey.stats$gene %in% xi.expr$Gene,]
+npx.par.dey.stats.xa.only <- npx.par.dey.stats[npx.par.dey.stats$gene %in% xa.only$Gene,]
+npx.par.dey.stats.all <- npx.par.dey.stats[npx.par.dey.stats$abs.mean > 0.1,]
+
+npx.par.dey.stats.xi.expr$gene.class <- "Xi-expressed"
+npx.par.dey.stats.xa.only$gene.class <- "Xa-only expressed"
+
+#Combine different gene classes into one big dataframe
+dat.chrX <- rbind(npx.par.dex.stats, npx.par.dex.stats.xi.expr, npx.par.dex.stats.xa.only, npy.dex.stats, auto.stats)
+dat.chrY <-rbind(npx.par.dey.stats, npx.par.dey.stats.xi.expr, npx.par.dey.stats.xa.only, npy.dey.stats, auto.y.stats)
+
+dat.1.x <- dat.chrX[dat.chrX$abs.mean > 0.1,]
+dat.1.y <- dat.chrY[dat.chrY$abs.mean > 0.1,]
+
+#Plot CVs by gene class 
+suppressPackageStartupMessages(library("ggbreak"))
+dat.1.x <- dat.1.x %>%
+  mutate(gene.class=factor(gene.class,levels=c( "All NPX, PAR", "Xi-expressed", "Xa-only expressed","Autosomal")) )
+p <- ggplot(dat.1.x, aes(x=gene.class, y=cov,  fill = gene.class)) +
+  geom_boxplot(outlier.size = 0) +
+  scale_y_cut(
+    c(1.5),which=c(2, 1), scales=c(3, 1))+
+  scale_fill_manual(values=c("#D55E00","#D55E0040","#D55E0080", "#E69F0080" )) +
+  labs( 
+      x= "",
+      y= "Coefficient of Variation",
+      title = bquote("Variation in response to Chr X across four cell types")
+      ) +
+  theme_classic(base_size = 7) +
+  theme(
+    plot.title = ggtext::element_markdown(),
+    axis.text = element_text(color = "black"),
+    #legend.position = "none"
+      )
+ggsave("deltaEx_CV_allX_Xa_Xi_autoX_0.1threshold.pdf",p, width=3, height=2.25, units="in", scale=1)
+
+pairwise.t.test(dat.1.x$cov, dat.1.x$gene.class, p.adj = "fdr")
+
+
+```
+
+
+#Plot correlation heatmaps
+```{r}
+suppressPackageStartupMessages(library(Hmisc))
+dex <- read.table("/sca-immune/Celltype_comparisons/npx.par_deltaEx_all_cell_types.txt", header = T, sep = "\t", row.names = "gene")
+dex <- as.matrix(dex[,2:5])
+npx.par.dex.mat <- as.matrix(npx.par.dex[,2:5])
+npx.par.cor <- as.data.frame(rcorr(dex, type = "pearson")[1])
+npx.par.cor <- as.data.frame(rcorr(npx.par.dex.mat, type = "pearson")[1])
+
+xi.expr <- xci[xci$Final_XCI_Call == "Escape", ]
+xa.only <- xci[xci$Final_XCI_Call == "Subject", ]
+
+dex.xi.expr <- dex[rownames(dex) %in% xi.expr$gene,]
+dex.xi.expr <- na.omit(dex.xi.expr)
+dex.xa.only.1 <- dex[rownames(dex) %in% xa.only.10genes,]
+
+xi.expr.cor <- as.data.frame(rcorr(dex.xi.expr, type = "pearson")[1])
+#xa.only.cor <- as.data.frame(rcorr(dex.xa.only, type = "pearson")[1])
+xa.only.cor.1 <- as.data.frame(rcorr(dex.xa.only.1, type = "pearson")[1])
+
+
+auto_list <- list(cd4.x.response.auto, mono.x.response.auto, res.lcl.fib.X.Y.response)  
+auto <- auto_list %>% purrr::reduce(full_join, by = 'Gene')
+
+auto <- auto[, c("log2FoldChange.x", "log2FoldChange.y", "lcl_log2FC_X", "fib_log2FC_X")]
+auto <- na.omit(auto)
+auto <- as.matrix(auto)
+colnames(auto) <- c("CD4..T.cell", "Monocyte", "LCL", "Fibroblast")
+auto.cor <- as.data.frame(rcorr(auto, type = "pearson")[1])
+
+auto.y <- auto.y[, c("log2FoldChange.x", "log2FoldChange.y", "lcl_log2FC_Y", "fib_log2FC_Y")]
+auto.y <- na.omit(auto.y)
+auto.y <- as.matrix(auto.y)
+colnames(auto.y) <- c("CD4..T.cell", "Monocyte", "LCL", "Fibroblast")
+auto.cor.y <- as.data.frame(rcorr(auto.y, type = "pearson")[1])
+
+
+#including xi and xa breakdown
+npx.par.xi.xa.auto.cor <- cbind(npx.par.cor, xi.expr.cor, xa.only.cor.1, auto.cor, auto.cor.y)
+rownames(npx.par.xi.xa.auto.cor) <- c("CD4+ T cell", "Monocyte", "LCL", "Fibroblast")
+colnames(npx.par.xi.xa.auto.cor) <- c("CD4+ T cell", "Monocyte", "LCL", "Fibroblast","CD4+ T cell", "Monocyte", "LCL", "Fibroblast","CD4+ T cell", "Monocyte", "LCL", "Fibroblast", "CD4+ T cell", "Monocyte", "LCL", "Fibroblast", "CD4+ T cell", "Monocyte", "LCL", "Fibroblast")
+pdf("four_cell_type_corr_coeffs_npx.par.xi.xa.autosomes.pdf", width = 6, height = 1.6)
+pheatmap(npx.par.xi.xa.auto.cor, cluster_rows = FALSE, cluster_cols = FALSE, angle_col = 45, gaps_col = c(4,8,12,16), fontsize = 7, color=colorRampPalette(c("lightblue", "white","yellow", "orange", "red"))(50))
+dev.off()
+
+
+```
+
+
+
