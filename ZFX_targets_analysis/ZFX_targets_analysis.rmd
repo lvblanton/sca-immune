@@ -1,0 +1,606 @@
+---
+title: "ZFX direct targets"
+author: "Laura Blanton"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+####CD4: Compare to Rhie 2018 and Ni 2020 ZFX targets
+```{r}
+cd4.x.response.auto <- read.table("cd4_autosomal_Xresponse.txt", header = T, sep = "\t")
+cd4.y.response.auto <- read.table("cd4_autosomal_Yresponse.txt", header = T, sep = "\t")
+cd4.x.response.sig.auto <- read.table("cd4_autosomal_sig_Xresponse.txt", header = T, sep = "\t")
+cd4.y.response.sig.auto <- read.table("cd4_autosomal_sig_Yresponse.txt", header = T, sep = "\t")
+
+Xresponsive_pos <- subset(cd4.x.response.sig.auto, cd4.x.response.sig.auto$log2FoldChange >= 0)
+Xresponsive_neg <- subset(cd4.x.response.sig.auto, cd4.x.response.sig.auto$log2FoldChange <= 0)
+Yresponsive_pos <- subset(cd4.y.response.sig.auto, cd4.y.response.sig.auto$log2FoldChange >= 0)
+Yresponsive_neg <- subset(cd4.y.response.sig.auto, cd4.y.response.sig.auto$log2FoldChange <= 0)
+
+
+c42B <- read.table("ZFX_direct_targets_C42B.txt", header = T, sep = "\t")
+mcf7 <- read.table("ZFX_direct_targets_MCF7.txt", header = T, sep = "\t")
+hek293T <- read.table("ZFX_direct_targets_HEK293T.txt", header = T, sep = "\t")
+fib <- read.table("ZFX_targets_fibroblast.txt*", sep = "\t")
+fib <- fib[fib$padj < 0.05,]
+fib$log2FoldChange <- fib$log2FoldChange *-1
+
+
+cd4.c42b.expr <- merge(cd4.x.response.auto, c42B, by = "Gene")
+cd4.mcf7.expr <- merge(cd4.x.response.auto, mcf7, by = "Gene")
+cd4.hek293t.expr <- merge(cd4.x.response.auto, hek293T, by = "Gene")
+cd4.fib.expr <- merge(cd4.x.response.auto, fib, by = "Gene")
+
+cd4.c42b.expr.act <- cd4.c42b.expr[cd4.c42b.expr$log2FoldChange.y < 0,]
+cd4.mcf7.expr.act <- cd4.mcf7.expr[cd4.mcf7.expr$log2FoldChange.y < 0,]
+cd4.hek293t.expr.act <- cd4.hek293t.expr[cd4.hek293t.expr$log2FoldChange.y < 0,]
+cd4.fib.expr.act <- cd4.fib.expr[cd4.fib.expr$log2FoldChange.y < 0,]
+
+cd4.c42b.expr.rep <- cd4.c42b.expr[cd4.c42b.expr$log2FoldChange.y > 0,]
+cd4.mcf7.expr.rep <- cd4.mcf7.expr[cd4.mcf7.expr$log2FoldChange.y > 0,]
+cd4.hek293t.expr.rep <- cd4.hek293t.expr[cd4.hek293t.expr$log2FoldChange.y > 0,]
+cd4.fib.expr.rep <- cd4.fib.expr[cd4.fib.expr$log2FoldChange.y > 0,]
+```
+
+#CD4: Hypergeometric tests
+```{r}
+x.response.pos.c42b.act <- length(intersect(cd4.c42b.expr.act$Gene, Xresponsive_pos$Gene))
+x.response.pos.mcf7.act <- length(intersect(cd4.mcf7.expr.act$Gene, Xresponsive_pos$Gene))
+x.response.pos.hek293t.act <- length(intersect(cd4.hek293t.expr.act$Gene, Xresponsive_pos$Gene))
+x.response.pos.fib.act <- length(intersect(cd4.fib.expr.act$Gene, Xresponsive_pos$Gene))
+
+x.response.pos.c42b.rep <- length(intersect(cd4.c42b.expr.rep$Gene, Xresponsive_pos$Gene))
+x.response.pos.mcf7.rep <- length(intersect(cd4.mcf7.expr.rep$Gene, Xresponsive_pos$Gene))
+x.response.pos.hek293t.rep <- length(intersect(cd4.hek293t.expr.rep$Gene, Xresponsive_pos$Gene))
+x.response.pos.fib.rep <- length(intersect(cd4.fib.expr.rep$Gene, Xresponsive_pos$Gene))
+
+x.response.neg.c42b.act <- length(intersect(cd4.c42b.expr.act$Gene, Xresponsive_neg$Gene))
+x.response.neg.mcf7.act <- length(intersect(cd4.mcf7.expr.act$Gene, Xresponsive_neg$Gene))
+x.response.neg.hek293t.act <- length(intersect(cd4.hek293t.expr.act$Gene, Xresponsive_neg$Gene))
+x.response.neg.fib.act <- length(intersect(cd4.fib.expr.act$Gene, Xresponsive_neg$Gene))
+
+x.response.neg.c42b.rep <- length(intersect(cd4.c42b.expr.rep$Gene, Xresponsive_neg$Gene))
+x.response.neg.mcf7.rep <- length(intersect(cd4.mcf7.expr.rep$Gene, Xresponsive_neg$Gene))
+x.response.neg.hek293t.rep <- length(intersect(cd4.hek293t.expr.rep$Gene, Xresponsive_neg$Gene))
+x.response.neg.fib.rep <- length(intersect(cd4.fib.expr.rep$Gene, Xresponsive_neg$Gene))
+
+
+y.response.pos.c42b.act <- length(intersect(cd4.c42b.expr.act$Gene, Yresponsive_pos$Gene))
+y.response.pos.mcf7.act <- length(intersect(cd4.mcf7.expr.act$Gene, Yresponsive_pos$Gene))
+y.response.pos.hek293t.act <- length(intersect(cd4.hek293t.expr.act$Gene, Yresponsive_pos$Gene))
+y.response.pos.fib.act <- length(intersect(cd4.fib.expr.act$Gene, Yresponsive_pos$Gene))
+
+y.response.pos.c42b.rep <- length(intersect(cd4.c42b.expr.rep$Gene, Yresponsive_pos$Gene))
+y.response.pos.mcf7.rep <- length(intersect(cd4.mcf7.expr.rep$Gene, Yresponsive_pos$Gene))
+y.response.pos.hek293t.rep <- length(intersect(cd4.hek293t.expr.rep$Gene, Yresponsive_pos$Gene))
+y.response.pos.fib.rep <- length(intersect(cd4.fib.expr.rep$Gene, Yresponsive_pos$Gene))
+
+y.response.neg.c42b.act <- length(intersect(cd4.c42b.expr.act$Gene, Yresponsive_neg$Gene))
+y.response.neg.mcf7.act <- length(intersect(cd4.mcf7.expr.act$Gene, Yresponsive_neg$Gene))
+y.response.neg.hek293t.act <- length(intersect(cd4.hek293t.expr.act$Gene, Yresponsive_neg$Gene))
+y.response.neg.fib.act <- length(intersect(cd4.fib.expr.act$Gene, Yresponsive_neg$Gene))
+
+y.response.neg.c42b.rep <- length(intersect(cd4.c42b.expr.rep$Gene, Yresponsive_neg$Gene))
+y.response.neg.mcf7.rep <- length(intersect(cd4.mcf7.expr.rep$Gene, Yresponsive_neg$Gene))
+y.response.neg.hek293t.rep <- length(intersect(cd4.hek293t.expr.rep$Gene, Yresponsive_neg$Gene))
+y.response.neg.fib.rep <- length(intersect(cd4.fib.expr.rep$Gene, Yresponsive_neg$Gene))
+
+#hypergeometric tests
+####C4-2B
+#202 autosomal X-responsive genes
+#3884 ZFX C42B targets (autosomal -- with expression in CD4)
+#55 overlapping X-responsive genes and ZFX C42B DEgenes
+#12755 protein-coding and lincRNA autosomal expressed genes
+phyper(55-1,202,12755-202,3795,lower.tail= FALSE)
+#for positive responders
+phyper(34-1,84,12755-84,3795,lower.tail= FALSE)
+#negative responders
+phyper(21-1,118,12755-118,3795,lower.tail= FALSE)
+
+# split by activated/repressed by ZFX
+x.pos <- dim(Xresponsive_pos)[1]
+x.neg <- dim(Xresponsive_neg)[1]
+cd.expr <- dim(x.response.auto)[1]
+c42b.act <- dim(cd4.c42b.expr.act)[1]
+c42b.rep <- dim(cd4.c42b.expr.rep)[1]
+phyper(x.response.pos.c42b.act-1,x.pos,cd.expr-x.pos,c42b.act,lower.tail= FALSE)
+phyper(x.response.pos.c42b.rep-1,x.pos,cd.expr-x.pos,c42b.rep,lower.tail= FALSE)
+phyper(x.response.neg.c42b.act-1,x.neg,cd.expr-x.neg,c42b.act,lower.tail= FALSE)
+phyper(x.response.neg.c42b.rep-1,x.neg,cd.expr-x.neg,c42b.rep,lower.tail= FALSE)
+
+y.pos <- dim(Yresponsive_pos)[1]
+y.neg <- dim(Yresponsive_neg)[1]
+phyper(y.response.pos.c42b.act-1,y.pos,cd.expr-y.pos,c42b.act,lower.tail= FALSE)
+phyper(y.response.pos.c42b.rep-1,y.pos,cd.expr-y.pos,c42b.rep,lower.tail= FALSE)
+phyper(y.response.neg.c42b.act-1,y.neg,cd.expr-y.neg,c42b.act,lower.tail= FALSE)
+phyper(y.response.neg.c42b.rep-1,y.neg,cd.expr-y.neg,c42b.rep,lower.tail= FALSE)
+
+####MCF7
+#202 autosomal X-responsive genes
+#1308 ZFX MCF7 targets (autosomal -- with expression in CD4)
+#25 overlapping X-responsive genes and ZFX MCF7 DEgenes
+#12755 protein-coding and lincRNA autosomal expressed genes
+phyper(25-1,202,12755-202,1308,lower.tail= FALSE)
+phyper(20-1,84,12755-84,1308,lower.tail= FALSE)
+phyper(5-1,118,12755-118,1308,lower.tail= FALSE)
+mcf7.act <- dim(cd4.mcf7.expr.act)[1]
+mcf7.rep <- dim(cd4.mcf7.expr.rep)[1]
+phyper(x.response.pos.mcf7.act-1,x.pos,cd.expr-x.pos,mcf7.act,lower.tail= FALSE)
+phyper(x.response.pos.mcf7.rep-1,x.pos,cd.expr-x.pos,mcf7.rep,lower.tail= FALSE)
+phyper(x.response.neg.mcf7.act-1,x.neg,cd.expr-x.neg,mcf7.act,lower.tail= FALSE)
+phyper(x.response.neg.mcf7.rep-1,x.neg,cd.expr-x.neg,mcf7.rep,lower.tail= FALSE)
+
+phyper(y.response.pos.mcf7.act-1,y.pos,cd.expr-y.pos,mcf7.act,lower.tail= FALSE)
+phyper(y.response.pos.mcf7.rep-1,y.pos,cd.expr-y.pos,mcf7.rep,lower.tail= FALSE)
+phyper(y.response.neg.mcf7.act-1,y.neg,cd.expr-y.neg,mcf7.act,lower.tail= FALSE)
+phyper(y.response.neg.mcf7.rep-1,y.neg,cd.expr-y.neg,mcf7.rep,lower.tail= FALSE)
+
+
+####HEK293T
+#202 autosomal X-responsive genes
+#4039 ZFX HEK293T targets
+#58 overlapping X-responsive genes and ZFX MCF7 targets
+#12755 protein-coding and lincRNA expressed genes
+phyper(58-1,202,12755-202,4039,lower.tail= FALSE)
+phyper(39-1,84,12755-84,4039,lower.tail= FALSE)
+phyper(19-1,118,12755-118,4039,lower.tail= FALSE)
+hek293t.act <- dim(cd4.hek293t.expr.act)[1]
+hek293t.rep <- dim(cd4.hek293t.expr.rep)[1]
+phyper(x.response.pos.hek293t.act-1,x.pos,cd.expr-x.pos,hek293t.act,lower.tail= FALSE)
+phyper(x.response.pos.hek293t.rep-1,x.pos,cd.expr-x.pos,hek293t.rep,lower.tail= FALSE)
+phyper(x.response.neg.hek293t.act-1,x.neg,cd.expr-x.neg,hek293t.act,lower.tail= FALSE)
+phyper(x.response.neg.hek293t.rep-1,x.neg,cd.expr-x.neg,hek293t.rep,lower.tail= FALSE)
+
+phyper(y.response.pos.hek293t.act-1,y.pos,cd.expr-y.pos,hek293t.act,lower.tail= FALSE)
+phyper(y.response.pos.hek293t.rep-1,y.pos,cd.expr-y.pos,hek293t.rep,lower.tail= FALSE)
+phyper(y.response.neg.hek293t.act-1,y.neg,cd.expr-y.neg,hek293t.act,lower.tail= FALSE)
+phyper(y.response.neg.hek293t.rep-1,y.neg,cd.expr-y.neg,hek293t.rep,lower.tail= FALSE)
+
+
+####Fibroblasts
+fib.act <- dim(cd4.fib.expr.act)[1]
+fib.rep <- dim(cd4.fib.expr.rep)[1]
+phyper(x.response.pos.fib.act-1,x.pos,cd.expr-x.pos,fib.act,lower.tail= FALSE)
+phyper(x.response.pos.fib.rep-1,x.pos,cd.expr-x.pos,fib.rep,lower.tail= FALSE)
+phyper(x.response.neg.fib.act-1,x.neg,cd.expr-x.neg,fib.act,lower.tail= FALSE)
+phyper(x.response.neg.fib.rep-1,x.neg,cd.expr-x.neg,fib.rep,lower.tail= FALSE)
+
+phyper(y.response.pos.fib.act-1,y.pos,cd.expr-y.pos,fib.act,lower.tail= FALSE)
+phyper(y.response.pos.fib.rep-1,y.pos,cd.expr-y.pos,fib.rep,lower.tail= FALSE)
+phyper(y.response.neg.fib.act-1,y.neg,cd.expr-y.neg,fib.act,lower.tail= FALSE)
+phyper(y.response.neg.fib.rep-1,y.neg,cd.expr-y.neg,fib.rep,lower.tail= FALSE)
+```
+
+#CD4: Percent overlaps with ZFX targets
+```{r}
+celltype <- c("C4-2B", "C4-2B", "MCF7", "MCF7", "HEK", "HEK", "Fibroblast", "Fibroblast")
+direction <- c("activated", "repressed", "activated", "repressed", "activated", "repressed", "activated", "repressed")
+#X-response, positive
+x.pos.summary <- data.frame(celltype, direction, 100*c(
+(x.response.pos.c42b.act/x.pos),
+(x.response.pos.c42b.rep/x.pos),
+(x.response.pos.mcf7.act/x.pos),
+(x.response.pos.mcf7.rep/x.pos),
+(x.response.pos.hek293t.act/x.pos),
+(x.response.pos.hek293t.rep/x.pos),
+(x.response.pos.fib.act/x.pos),
+(x.response.pos.fib.rep/x.pos)))
+x.pos.summary <- tidyr::unite_(x.pos.summary, paste(colnames(x.pos.summary)[-3], collapse="_"), colnames(x.pos.summary)[-3])
+colnames(x.pos.summary)[2] <- "percent"
+
+x.pos.fib.summary<- x.pos.summary[x.pos.summary$celltype_direction %in% c("Fibroblast_activated", "Fibroblast_repressed"),]
+x.pos.direct.summary <- x.pos.summary[!x.pos.summary$celltype_direction %in% c("Fibroblast_activated", "Fibroblast_repressed"),]
+
+#X-response, negative
+x.neg.summary <- data.frame(celltype, direction,100*c(
+(x.response.neg.c42b.act/x.neg),
+(x.response.neg.c42b.rep/x.neg),
+(x.response.neg.mcf7.act/x.neg),
+(x.response.neg.mcf7.rep/x.neg),
+(x.response.neg.hek293t.act/x.neg),
+(x.response.neg.hek293t.rep/x.neg),
+(x.response.neg.fib.act/x.neg),
+(x.response.neg.fib.rep/x.neg)))
+x.neg.summary <- tidyr::unite_(x.neg.summary, paste(colnames(x.neg.summary)[-3], collapse="_"), colnames(x.neg.summary)[-3])
+colnames(x.neg.summary)[2] <- "percent"
+
+x.neg.fib.summary<- x.neg.summary[x.neg.summary$celltype_direction %in% c("Fibroblast_activated", "Fibroblast_repressed"),]
+x.neg.direct.summary <- x.neg.summary[!x.neg.summary$celltype_direction %in% c("Fibroblast_activated", "Fibroblast_repressed"),]
+
+
+#Y-response, positive
+y.pos.summary <- data.frame(celltype, direction, 100*c(
+(y.response.pos.c42b.act/y.pos),
+(y.response.pos.c42b.rep/y.pos),
+(y.response.pos.mcf7.act/y.pos),
+(y.response.pos.mcf7.rep/y.pos),
+(y.response.pos.hek293t.act/y.pos),
+(y.response.pos.hek293t.rep/y.pos),
+(y.response.pos.fib.act/y.pos),
+(y.response.pos.fib.rep/y.pos)))
+y.pos.summary <- tidyr::unite_(y.pos.summary, paste(colnames(y.pos.summary)[-3], collapse="_"), colnames(y.pos.summary)[-3])
+colnames(y.pos.summary)[2] <- "percent"
+
+y.pos.fib.summary<- y.pos.summary[y.pos.summary$celltype_direction %in% c("Fibroblast_activated", "Fibroblast_repressed"),]
+y.pos.direct.summary <- y.pos.summary[!y.pos.summary$celltype_direction %in% c("Fibroblast_activated", "Fibroblast_repressed"),]
+
+
+#Y-response, negative
+y.neg.summary <- data.frame(celltype, direction,100*c(
+(y.response.neg.c42b.act/y.neg),
+(y.response.neg.c42b.rep/y.neg),
+(y.response.neg.mcf7.act/y.neg),
+(y.response.neg.mcf7.rep/y.neg),
+(y.response.neg.hek293t.act/y.neg),
+(y.response.neg.hek293t.rep/y.neg),
+(y.response.neg.fib.act/y.neg),
+(y.response.neg.fib.rep/y.neg)))
+y.neg.summary <- tidyr::unite_(y.neg.summary, paste(colnames(y.neg.summary)[-3], collapse="_"), colnames(y.neg.summary)[-3])
+colnames(y.neg.summary)[2] <- "percent"
+
+y.neg.fib.summary<- y.neg.summary[y.neg.summary$celltype_direction %in% c("Fibroblast_activated", "Fibroblast_repressed"),]
+y.neg.direct.summary <- y.neg.summary[!y.neg.summary$celltype_direction %in% c("Fibroblast_activated", "Fibroblast_repressed"),]
+```
+
+#CD4: Plot percentages
+```{r}
+xbar_order <- x.direct.summary$celltype_direction_xdir
+p<-ggplot(x.direct.summary, aes(x=factor(celltype_direction_xdir, xbar_order), y=percent, fill=celltype_direction_xdir)) +
+  geom_bar(stat="identity")+
+  #scale_fill_manual(values=c("#009E73", "#009E7380","#0072B2", "#0072B280","#F0E442", "#F0E44280")) +
+  #scale_fill_manual(values=c("#848884","darkgrey", "grey","lightgrey","#848884","darkgrey", "grey","lightgrey","#848884","darkgrey", "grey","lightgrey")) +
+  scale_fill_manual(values=c("#848884","#84888495", "#84888475","#84888460","#848884","darkgrey", "grey","lightgrey","#848884","darkgrey", "grey","lightgrey")) +
+  ggtitle("Sig. response to Xi")+
+  xlab("") +
+  ylab("Percent overlap with direct ZFX targets")+
+  ylim(NA, 55) +
+  theme_classic(base_size = 7)+
+  theme(
+        axis.ticks.x=element_blank(),
+        legend.key.size = unit(0.08, 'in'))
+ggsave("Figures/cd4_x_overlap_w_ZFX_direct_targets_barplot.pdf", p, width = 4, height = 2)
+
+ybar_order <- y.direct.summary$celltype_direction_ydir
+p<-ggplot(y.direct.summary, aes(x=factor(celltype_direction_ydir, ybar_order), y=percent, fill=celltype_direction_ydir)) +
+  geom_bar(stat="identity")+
+  #scale_fill_manual(values=c("#009E73", "#009E7380","#0072B2", "#0072B280","#F0E442", "#F0E44280")) +
+  scale_fill_manual(values=c("#848884","#84888495", "#84888475","#84888460","#848884","darkgrey", "grey","lightgrey","#848884","darkgrey", "grey","lightgrey")) +
+  ggtitle("Significant response to Chr Y")+
+  xlab("") +
+  ylab("Percent overlap with direct ZFX targets")+
+  ylim(NA, 55) +
+  theme_classic(base_size = 7)+
+  theme(
+        axis.ticks.x=element_blank(),
+        legend.key.size = unit(0.08, 'in'))
+p
+ggsave("Figures/cd4_y_overlap_w_ZFX_direct_targets_barplot.pdf", p, width = 4, height = 2)
+
+xbar_order <- x.fib.summary$celltype_direction_xdir
+p<-ggplot(x.fib.summary, aes(x=factor(celltype_direction_xdir, xbar_order), y=percent, fill=celltype_direction_xdir)) +
+  geom_bar(stat="identity")+
+  #scale_fill_manual(values=c("#E69F00", "#E69F0080")) + 
+  scale_fill_manual(values=c("#848884","#84888495", "#84888475","#84888460")) +
+  ggtitle("Significant response to Xi")+
+  xlab("") +
+  ylab("Percent overlap with ZFX targets")+
+  ylim(NA, 55) +
+  theme_classic(base_size = 7)+
+  theme(
+        axis.ticks.x=element_blank(),
+        legend.key.size = unit(0.08, 'in'))
+p
+ggsave("Figures/cd4_x_overlap_w_ZFX_fib_targets_barplot.pdf", p, width = 2.5, height = 2)
+
+
+ybar_order <- y.fib.summary$celltype_direction
+p<-ggplot(y.fib.summary, aes(x=factor(celltype_direction_ydir, ybar_order), y=percent, fill=celltype_direction_ydir)) +
+  geom_bar(stat="identity")+
+  #scale_fill_manual(values=c("#E69F00", "#E69F0080")) +
+  scale_fill_manual(values=c("#848884","#84888495", "#84888475","#84888460")) +
+  ggtitle("Significant response to Chr Y")+
+  xlab("") +
+  ylab("Percent overlap with ZFX targets")+
+  ylim(NA, 55) +
+  theme_classic(base_size = 7)+
+  theme(
+        axis.ticks.x=element_blank(),
+        legend.key.size = unit(0.08, 'in'))
+p
+ggsave("Figures/cd4_y_overlap_w_ZFX_fib_targets_barplot.pdf", p, width = 2.5, height = 2)
+
+```
+
+#Monocyte: Compare to Rhie 2018 and Ni 2020
+```{r}
+mono.x.response.auto <- read.table("monocyte_autosomal_Xresponse.txt", header = T, sep = "\t")
+mono.y.response.auto <- read.table("monocyte_autosomal_Yresponse.txt", header = T, sep = "\t")
+mono.x.response.sig.auto <- read.table("monocyte_autosomal_sig_Xresponse.txt", header = T, sep = "\t")
+mono.y.response.sig.auto <- read.table("monocyte_autosomal_sig_Yresponse.txt", header = T, sep = "\t")
+
+Xresponsive_pos <- subset(mono.x.response.sig.auto, mono.x.response.sig.auto$log2FoldChange >= 0)
+Xresponsive_neg <- subset(mono.x.response.sig.auto, mono.x.response.sig.auto$log2FoldChange <= 0)
+Yresponsive_pos <- subset(mono.y.response.sig.auto, mono.y.response.sig.auto$log2FoldChange >= 0)
+Yresponsive_neg <- subset(mono.y.response.sig.auto, mono.y.response.sig.auto$log2FoldChange <= 0)
+
+mono.c42b.expr <- merge(mono.x.response.auto, c42B, by = "Gene")
+mono.mcf7.expr <- merge(mono.x.response.auto, mcf7, by = "Gene")
+mono.hek293t.expr <- merge(mono.x.response.auto, hek293T, by = "Gene")
+mono.fib.expr <- merge(mono.x.response.auto, fib, by = "Gene")
+
+mono.c42b.expr.act <- mono.c42b.expr[mono.c42b.expr$log2FoldChange.y < 0,]
+mono.mcf7.expr.act <- mono.mcf7.expr[mono.mcf7.expr$log2FoldChange.y < 0,]
+mono.hek293t.expr.act <- mono.hek293t.expr[mono.hek293t.expr$log2FoldChange.y < 0,]
+mono.fib.expr.act <- mono.fib.expr[mono.fib.expr$log2FoldChange.y < 0,]
+
+mono.c42b.expr.rep <- mono.c42b.expr[mono.c42b.expr$log2FoldChange.y > 0,]
+mono.mcf7.expr.rep <- mono.mcf7.expr[mono.mcf7.expr$log2FoldChange.y > 0,]
+mono.hek293t.expr.rep <- mono.hek293t.expr[mono.hek293t.expr$log2FoldChange.y > 0,]
+mono.fib.expr.rep <- mono.fib.expr[mono.fib.expr$log2FoldChange.y > 0,]
+```
+
+#Monocyte: Hypergeometric tests
+```{r}
+x.response.pos.c42b.act <- length(intersect(mono.c42b.expr.act$Gene, Xresponsive_pos$Gene))
+x.response.pos.mcf7.act <- length(intersect(mono.mcf7.expr.act$Gene, Xresponsive_pos$Gene))
+x.response.pos.hek293t.act <- length(intersect(mono.hek293t.expr.act$Gene, Xresponsive_pos$Gene))
+x.response.pos.fib.act <- length(intersect(mono.fib.expr.act$Gene, Xresponsive_pos$Gene))
+
+x.response.pos.c42b.rep <- length(intersect(mono.c42b.expr.rep$Gene, Xresponsive_pos$Gene))
+x.response.pos.mcf7.rep <- length(intersect(mono.mcf7.expr.rep$Gene, Xresponsive_pos$Gene))
+x.response.pos.hek293t.rep <- length(intersect(mono.hek293t.expr.rep$Gene, Xresponsive_pos$Gene))
+x.response.pos.fib.rep <- length(intersect(mono.fib.expr.rep$Gene, Xresponsive_pos$Gene))
+
+x.response.neg.c42b.act <- length(intersect(mono.c42b.expr.act$Gene, Xresponsive_neg$Gene))
+x.response.neg.mcf7.act <- length(intersect(mono.mcf7.expr.act$Gene, Xresponsive_neg$Gene))
+x.response.neg.hek293t.act <- length(intersect(mono.hek293t.expr.act$Gene, Xresponsive_neg$Gene))
+x.response.neg.fib.act <- length(intersect(mono.fib.expr.act$Gene, Xresponsive_neg$Gene))
+
+x.response.neg.c42b.rep <- length(intersect(mono.c42b.expr.rep$Gene, Xresponsive_neg$Gene))
+x.response.neg.mcf7.rep <- length(intersect(mono.mcf7.expr.rep$Gene, Xresponsive_neg$Gene))
+x.response.neg.hek293t.rep <- length(intersect(mono.hek293t.expr.rep$Gene, Xresponsive_neg$Gene))
+x.response.neg.fib.rep <- length(intersect(mono.fib.expr.rep$Gene, Xresponsive_neg$Gene))
+
+y.response.pos.c42b.act <- length(intersect(mono.c42b.expr.act$Gene, Yresponsive_pos$Gene))
+y.response.pos.mcf7.act <- length(intersect(mono.mcf7.expr.act$Gene, Yresponsive_pos$Gene))
+y.response.pos.hek293t.act <- length(intersect(mono.hek293t.expr.act$Gene, Yresponsive_pos$Gene))
+y.response.pos.fib.act <- length(intersect(mono.fib.expr.act$Gene, Yresponsive_pos$Gene))
+
+y.response.pos.c42b.rep <- length(intersect(mono.c42b.expr.rep$Gene, Yresponsive_pos$Gene))
+y.response.pos.mcf7.rep <- length(intersect(mono.mcf7.expr.rep$Gene, Yresponsive_pos$Gene))
+y.response.pos.hek293t.rep <- length(intersect(mono.hek293t.expr.rep$Gene, Yresponsive_pos$Gene))
+y.response.pos.fib.rep <- length(intersect(mono.fib.expr.rep$Gene, Yresponsive_pos$Gene))
+
+y.response.neg.c42b.act <- length(intersect(mono.c42b.expr.act$Gene, Yresponsive_neg$Gene))
+y.response.neg.mcf7.act <- length(intersect(mono.mcf7.expr.act$Gene, Yresponsive_neg$Gene))
+y.response.neg.hek293t.act <- length(intersect(mono.hek293t.expr.act$Gene, Yresponsive_neg$Gene))
+y.response.neg.fib.act <- length(intersect(mono.fib.expr.act$Gene, Yresponsive_neg$Gene))
+
+y.response.neg.c42b.rep <- length(intersect(mono.c42b.expr.rep$Gene, Yresponsive_neg$Gene))
+y.response.neg.mcf7.rep <- length(intersect(mono.mcf7.expr.rep$Gene, Yresponsive_neg$Gene))
+y.response.neg.hek293t.rep <- length(intersect(mono.hek293t.expr.rep$Gene, Yresponsive_neg$Gene))
+y.response.neg.fib.rep <- length(intersect(mono.fib.expr.rep$Gene, Yresponsive_neg$Gene))
+
+x_or_y.pos.c42b.act <- length(intersect(mono.c42b.expr.act$Gene, x_or_y.pos$Gene))
+x_or_y.pos.mcf7.act <- length(intersect(mono.mcf7.expr.act$Gene, x_or_y.pos$Gene))
+x_or_y.pos.hek293t.act <- length(intersect(mono.hek293t.expr.act$Gene, x_or_y.pos$Gene))
+x_or_y.pos.fib.act <- length(intersect(mono.fib.expr.act$Gene, x_or_y.pos$Gene))
+
+phyper(x_or_y.pos.c42b.act-1,dim(x_or_y.pos)[1],mono.expr-dim(x_or_y.pos)[1],c42b.act,lower.tail= FALSE)
+
+#hypergeometric tests
+####C4-2B
+#54 autosomal X-responsive genes
+#3688 ZFX C42B targets (autosomal -- with expression in monocytes)
+#19 overlapping X-responsive genes and ZFX C42B DEgenes
+#12140 protein-coding and lincRNA autosomal expressed genes
+phyper(19-1,54,12140-54,3688,lower.tail= FALSE)
+#for positive responders
+phyper(15-1,38,12140-38,3688,lower.tail= FALSE)
+#negative responders
+phyper(4-1,16,12140-16,3688,lower.tail= FALSE)
+
+
+# split by activated/repressed by ZFX
+x.pos <- dim(Xresponsive_pos)[1]
+x.neg <- dim(Xresponsive_neg)[1]
+mono.expr <- dim(x.response.auto)[1]
+c42b.act <- dim(mono.c42b.expr.act)[1]
+c42b.rep <- dim(mono.c42b.expr.rep)[1]
+phyper(x.response.pos.c42b.act-1,x.pos,mono.expr-x.pos,c42b.act,lower.tail= FALSE)
+phyper(x.response.pos.c42b.rep-1,x.pos,mono.expr-x.pos,c42b.rep,lower.tail= FALSE)
+phyper(x.response.neg.c42b.act-1,x.neg,mono.expr-x.neg,c42b.act,lower.tail= FALSE)
+phyper(x.response.neg.c42b.rep-1,x.neg,mono.expr-x.neg,c42b.rep,lower.tail= FALSE)
+
+y.pos <- dim(Yresponsive_pos)[1]
+y.neg <- dim(Yresponsive_neg)[1]
+phyper(y.response.pos.c42b.act-1,y.pos,mono.expr-y.pos,c42b.act,lower.tail= FALSE)
+phyper(y.response.pos.c42b.rep-1,y.pos,mono.expr-y.pos,c42b.rep,lower.tail= FALSE)
+phyper(y.response.neg.c42b.act-1,y.neg,mono.expr-y.neg,c42b.act,lower.tail= FALSE)
+phyper(y.response.neg.c42b.rep-1,y.neg,mono.expr-y.neg,c42b.rep,lower.tail= FALSE)
+
+####MCF7
+#54 autosomal X-responsive genes
+#1273 ZFX MCF7 targets (autosomal -- with expression in CD4)
+#11 overlapping X-responsive genes and ZFX MCF7 DEgenes
+#12755 protein-coding and lincRNA autosomal expressed genes
+phyper(11-1,54,12755-54,1273,lower.tail= FALSE)
+phyper(8-1,38,12755-38,1273,lower.tail= FALSE)
+phyper(3-1,16,12755-16,1273,lower.tail= FALSE)
+
+mcf7.act <- dim(mono.mcf7.expr.act)[1]
+mcf7.rep <- dim(mono.mcf7.expr.rep)[1]
+phyper(x.response.pos.mcf7.act-1,x.pos,mono.expr-x.pos,mcf7.act,lower.tail= FALSE)
+phyper(x.response.pos.mcf7.rep-1,x.pos,mono.expr-x.pos,mcf7.rep,lower.tail= FALSE)
+phyper(x.response.neg.mcf7.act-1,x.neg,mono.expr-x.neg,mcf7.act,lower.tail= FALSE)
+phyper(x.response.neg.mcf7.rep-1,x.neg,mono.expr-x.neg,mcf7.rep,lower.tail= FALSE)
+
+phyper(y.response.pos.mcf7.act-1,y.pos,mono.expr-y.pos,mcf7.act,lower.tail= FALSE)
+phyper(y.response.pos.mcf7.rep-1,y.pos,mono.expr-y.pos,mcf7.rep,lower.tail= FALSE)
+phyper(y.response.neg.mcf7.act-1,y.neg,mono.expr-y.neg,mcf7.act,lower.tail= FALSE)
+phyper(y.response.neg.mcf7.rep-1,y.neg,mono.expr-y.neg,mcf7.rep,lower.tail= FALSE)
+
+####HEK293T
+#54 autosomal X-responsive genes
+#4039 ZFX HEK293T targets
+#24 overlapping X-responsive genes and ZFX MCF7 targets
+#12755 protein-coding and lincRNA expressed genes
+phyper(24-1,54,12755-54,4039,lower.tail= FALSE)
+phyper(16-1,38,12755-38,4039,lower.tail= FALSE)
+phyper(8-1,16,12755-16,4039,lower.tail= FALSE)
+
+hek293t.act <- dim(mono.hek293t.expr.act)[1]
+hek293t.rep <- dim(mono.hek293t.expr.rep)[1]
+phyper(x.response.pos.hek293t.act-1,x.pos,mono.expr-x.pos,hek293t.act,lower.tail= FALSE)
+phyper(x.response.pos.hek293t.rep-1,x.pos,mono.expr-x.pos,hek293t.rep,lower.tail= FALSE)
+phyper(x.response.neg.hek293t.act-1,x.neg,mono.expr-x.neg,hek293t.act,lower.tail= FALSE)
+phyper(x.response.neg.hek293t.rep-1,x.neg,mono.expr-x.neg,hek293t.rep,lower.tail= FALSE)
+
+phyper(y.response.pos.hek293t.act-1,y.pos,mono.expr-y.pos,hek293t.act,lower.tail= FALSE)
+phyper(y.response.pos.hek293t.rep-1,y.pos,mono.expr-y.pos,hek293t.rep,lower.tail= FALSE)
+phyper(y.response.neg.hek293t.act-1,y.neg,mono.expr-y.neg,hek293t.act,lower.tail= FALSE)
+phyper(y.response.neg.hek293t.rep-1,y.neg,mono.expr-y.neg,hek293t.rep,lower.tail= FALSE)
+
+####Fibroblasts
+fib.act <- dim(mono.fib.expr.act)[1]
+fib.rep <- dim(mono.fib.expr.rep)[1]
+phyper(x.response.pos.fib.act-1,x.pos,mono.expr-x.pos,fib.act,lower.tail= FALSE)
+phyper(x.response.pos.fib.rep-1,x.pos,mono.expr-x.pos,fib.rep,lower.tail= FALSE)
+phyper(x.response.neg.fib.act-1,x.neg,mono.expr-x.neg,fib.act,lower.tail= FALSE)
+phyper(x.response.neg.fib.rep-1,x.neg,mono.expr-x.neg,fib.rep,lower.tail= FALSE)
+
+phyper(y.response.pos.fib.act-1,y.pos,mono.expr-y.pos,fib.act,lower.tail= FALSE)
+phyper(y.response.pos.fib.rep-1,y.pos,mono.expr-y.pos,fib.rep,lower.tail= FALSE)
+phyper(y.response.neg.fib.act-1,y.neg,mono.expr-y.neg,fib.act,lower.tail= FALSE)
+phyper(y.response.neg.fib.rep-1,y.neg,mono.expr-y.neg,fib.rep,lower.tail= FALSE)
+
+```
+
+#Monocyte: Percent overlaps with ZFX targets
+```{r}
+####Percent overlaps with direct ZFX targets
+celltype <- c("C4-2B", "C4-2B","C4-2B", "C4-2B","HEK", "HEK", "HEK", "HEK", "MCF7", "MCF7","MCF7", "MCF7", "Fibroblast", "Fibroblast","Fibroblast", "Fibroblast")
+direction <- c("activated", "repressed")
+xdir <-c("a", "a", "b", "b")
+ydir <-c("a", "a", "b", "b")
+
+#X-response
+x.summary <- data.frame(celltype, direction, xdir, 100*c(
+(x.response.pos.c42b.act/x.pos),
+(x.response.pos.c42b.rep/x.pos),
+(x.response.neg.c42b.act/x.neg),
+(x.response.neg.c42b.rep/x.neg),
+(x.response.pos.hek293t.act/x.pos),
+(x.response.pos.hek293t.rep/x.pos),
+(x.response.neg.hek293t.act/x.neg),
+(x.response.neg.hek293t.rep/x.neg),
+(x.response.pos.mcf7.act/x.pos),
+(x.response.pos.mcf7.rep/x.pos),
+(x.response.neg.mcf7.act/x.neg),
+(x.response.neg.mcf7.rep/x.neg),
+(x.response.pos.fib.act/x.pos),
+(x.response.pos.fib.rep/x.pos),
+(x.response.neg.fib.act/x.neg),
+(x.response.neg.fib.rep/x.neg)))
+x.summary <- tidyr::unite_(x.summary, paste(colnames(x.summary)[-4], collapse="_"), colnames(x.summary)[-4])
+colnames(x.summary)[2] <- "percent"
+
+x.fib.summary<- x.summary[x.summary$celltype_direction %in% c("Fibroblast_activated_a", "Fibroblast_repressed_a", "Fibroblast_activated_b", "Fibroblast_repressed_b"),]
+x.direct.summary <- x.summary[!x.summary$celltype_direction %in% c("Fibroblast_activated_a", "Fibroblast_repressed_a", "Fibroblast_activated_b", "Fibroblast_repressed_b"),]
+
+#Y-response
+y.summary <- data.frame(celltype, direction, ydir, 100*c(
+(y.response.pos.c42b.act/y.pos),
+(y.response.pos.c42b.rep/y.pos),
+(y.response.neg.c42b.act/y.neg),
+(y.response.neg.c42b.rep/y.neg),
+(y.response.pos.hek293t.act/y.pos),
+(y.response.pos.hek293t.rep/y.pos),
+(y.response.neg.hek293t.act/y.neg),
+(y.response.neg.hek293t.rep/y.neg),
+(y.response.pos.mcf7.act/y.pos),
+(y.response.pos.mcf7.rep/y.pos),
+(y.response.neg.mcf7.act/y.neg),
+(y.response.neg.mcf7.rep/y.neg),
+(y.response.pos.fib.act/y.pos),
+(y.response.pos.fib.rep/y.pos),
+(y.response.neg.fib.act/y.neg),
+(y.response.neg.fib.rep/y.neg)))
+y.summary <- tidyr::unite_(y.summary, paste(colnames(y.summary)[-4], collapse="_"), colnames(y.summary)[-4])
+colnames(y.summary)[2] <- "percent"
+
+y.fib.summary<- y.summary[y.summary$celltype_direction %in% c("Fibroblast_activated_a", "Fibroblast_repressed_a", "Fibroblast_activated_b", "Fibroblast_repressed_b"),]
+y.direct.summary <- y.summary[!y.summary$celltype_direction %in% c("Fibroblast_activated_a", "Fibroblast_repressed_a", "Fibroblast_activated_b", "Fibroblast_repressed_b"),]
+```
+
+#Monocyte: Plot percentages
+```{r}
+xbar_order <- x.direct.summary$celltype_direction_xdir
+p<-ggplot(x.direct.summary, aes(x=factor(celltype_direction_xdir, xbar_order), y=percent, fill=celltype_direction_xdir)) +
+  geom_bar(stat="identity")+
+  #scale_fill_manual(values=c("#009E73", "#009E7380","#0072B2", "#0072B280","#F0E442", "#F0E44280")) +
+  #scale_fill_manual(values=c("#848884","darkgrey", "grey","lightgrey","#848884","darkgrey", "grey","lightgrey","#848884","darkgrey", "grey","lightgrey")) +
+  scale_fill_manual(values=c("#848884","#84888495", "#84888475","#84888460","#848884","darkgrey", "grey","lightgrey","#848884","darkgrey", "grey","lightgrey")) +
+  ggtitle("Sig. response to Xi")+
+  xlab("") +
+  ylab("Percent overlap with direct ZFX targets")+
+  ylim(NA, 70) +
+  theme_classic(base_size = 7)+
+  theme(
+        axis.ticks.x=element_blank(),
+        legend.key.size = unit(0.08, 'in'))
+ggsave("Figures/mono_x_overlap_w_ZFX_direct_targets_barplot.pdf", p, width = 4, height = 2)
+
+
+ybar_order <- y.direct.summary$celltype_direction_ydir
+p<-ggplot(y.direct.summary, aes(x=factor(celltype_direction_ydir, ybar_order), y=percent, fill=celltype_direction_ydir)) +
+  geom_bar(stat="identity")+
+  #scale_fill_manual(values=c("#009E73", "#009E7380","#0072B2", "#0072B280","#F0E442", "#F0E44280")) +
+  scale_fill_manual(values=c("#848884","#84888495", "#84888475","#84888460","#848884","darkgrey", "grey","lightgrey","#848884","darkgrey", "grey","lightgrey")) +
+  ggtitle("Significant response to Chr Y")+
+  xlab("") +
+  ylab("Percent overlap with direct ZFX targets")+
+  ylim(NA, 70) +
+  theme_classic(base_size = 7)+
+  theme(
+        axis.ticks.x=element_blank(),
+        legend.key.size = unit(0.08, 'in'))
+p
+ggsave("Figures/mono_y_overlap_w_ZFX_direct_targets_barplot.pdf", p, width = 4, height = 2)
+
+xbar_order <- x.fib.summary$celltype_direction_xdir
+p<-ggplot(x.fib.summary, aes(x=factor(celltype_direction_xdir, xbar_order), y=percent, fill=celltype_direction_xdir)) +
+  geom_bar(stat="identity")+
+  #scale_fill_manual(values=c("#E69F00", "#E69F0080")) + 
+  scale_fill_manual(values=c("#848884","#84888495", "#84888475","#84888460")) +
+  ggtitle("Significant response to Xi")+
+  xlab("") +
+  ylab("Percent overlap with ZFX targets")+
+  ylim(NA, 70) +
+  theme_classic(base_size = 7)+
+  theme(
+        axis.ticks.x=element_blank(),
+        legend.key.size = unit(0.08, 'in'))
+p
+ggsave("Figures/mono_x_overlap_w_ZFX_fib_targets_barplot.pdf", p, width = 2.5, height = 2)
+
+ybar_order <- y.fib.summary$celltype_direction
+p<-ggplot(y.fib.summary, aes(x=factor(celltype_direction_ydir, ybar_order), y=percent, fill=celltype_direction_ydir)) +
+  geom_bar(stat="identity")+
+  #scale_fill_manual(values=c("#E69F00", "#E69F0080")) +
+  scale_fill_manual(values=c("#848884","#84888495", "#84888475","#84888460")) +
+  ggtitle("Significant response to Chr Y")+
+  xlab("") +
+  ylab("Percent overlap with ZFX targets")+
+  ylim(NA, 70) +
+  theme_classic(base_size = 7)+
+  theme(
+        axis.ticks.x=element_blank(),
+        legend.key.size = unit(0.08, 'in'))
+p
+ggsave("Figures/mono_y_overlap_w_ZFX_fib_targets_barplot.pdf", p, width = 2.5, height = 2)
+```
+
