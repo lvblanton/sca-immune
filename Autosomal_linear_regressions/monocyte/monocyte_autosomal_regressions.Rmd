@@ -1,0 +1,560 @@
+---
+title: "NIH Human Monocyte RNA-Seq analysis"
+author: "Laura Blanton"
+output: html_document
+---
+
+####Gene annotations
+```{r}
+geneAnno <- read.delim(file="/sca-immune/Annotations/geneAnno_proteinCoding_lncRNA_v107_20221021.txt", stringsAsFactors = FALSE)[,c(2,1,3:6,8,14,9)]
+colnames(geneAnno)[c(1,4,5,6)] <- c("Gene","chr","start","stop")
+geneAnno <- geneAnno[! duplicated(geneAnno$gene_name.107) & ! geneAnno$gene_name.107 %in% c("") & ! duplicated(geneAnno$Gene),]
+geneAnno_x <- geneAnno[geneAnno$chr == "chrX",]
+geneAnno_y <- geneAnno[geneAnno$chr == "chrY",]
+X_genes_all <-as.character(geneAnno[grep("chrX", geneAnno$chr), ]$Gene)
+Y_genes_all <-as.character(geneAnno[grep("chrY", geneAnno$chr), ]$Gene)
+sexChrom_genes <- c(X_genes_all,Y_genes_all)
+PAR1_genes <- geneAnno_x[geneAnno_x$start < 2691188,]$Gene
+PAR2_genes <- c("SPRY3","VAMP7","IL9R","WASH6P")
+PAR_genes_all <- c(PAR1_genes,PAR2_genes)
+NPX_genes <- X_genes_all[! X_genes_all %in% PAR_genes_all]
+NPY_genes <- Y_genes_all[! Y_genes_all %in% PAR_genes_all]
+autosome_genes <- geneAnno[! geneAnno$chr %in% c("chrX","chrY"),"Gene"]
+X_ancestral_genes = c("SOX3", "ZFX", "DDX3X", "KDM6A","KDM5C","USP9X","EIF1AX","RPS4X","AMELX","TXLNG","TMSB4X","NLGN4X","TBL1X","PRKX")
+Y_ancestral_genes = c("SRY", "ZFY", "DDX3Y", "UTY","KDM5D","USP9Y","EIF1AY","RPS4Y1","RPS4Y2", "AMELY","TXLNGY","TMSB4Y","NLGN4Y","TBL1Y","PRKY")
+XY_ancestral_genes = c("SOX3", "ZFX", "DDX3X", "KDM6A","KDM5C","USP9X","EIF1AX","RPS4X","AMELX","TXLNG","TMSB4X","NLGN4X","TBL1X","PRKX","SRY", "ZFY", "DDX3Y", "UTY","KDM5D","USP9Y","EIF1AY","RPS4Y1","RPS4Y2", "AMELY","TXLNGY","TMSB4Y","NLGN4Y","TBL1Y","PRKY")
+
+```
+
+####Load metadata 
+```{r}
+library("tximport")
+library("readr")
+
+setwd("") #set path to working directory
+dir <-  #set path to directory with metadata
+myPath <-  #set path to directory with kallisto results
+  
+#Set up annotation
+annofile <-read.delim(file="annotation_with_ERCC.txt" ,sep = " ") #path to annotation_with_ERCC.txt
+tx2gene <- data.frame("TXNAME"=annofile$transcript_id, "GENEID"=annofile$gene_name)
+
+#Set up file lists and metadata
+samples <- read.delim(file.path(dir, "monocyte_metadata.csv"), sep = "\t", header = TRUE)
+monofiles <- file.path(dir, "monocyte_results", samples$Kallisto_directory, "abundance.tsv")
+names(monofiles) <- samples$Kallisto_directory
+
+#Set up monocyte sample metadata
+colData <- rread.delim(file.path(dir, "monocyte_metadata.csv"), sep = "\t", header = TRUE, row.names="SampleID")
+colData <- colData[,c("Sex","Karyotype", "X_count", "Y_count", "Sex_chrom_count", "GTC_Run_ID")]
+```
+
+####Import monocyte RNA-Seq data
+```{r}
+#####This is code for importing kallisto results generated from raw fastq files; the raw fastq files are accessible at dbGaP accession # phs002481. From the raw data, run the following kallisto command: 
+# kallisto quant -i KALLISTO_INDEX_FILE -t 16 --bias --plaintext -o  /kallisto_OUTPUT_FOLDER/sampleName/ file1fastq.gz file2fastq.gz 
+
+# all monocyte files
+all(file.exists(monofiles))
+mono.txi <- tximport(monofiles, type = "kallisto", tx2gene = tx2gene)
+#save(mono.txi, file="mono.txi.rda")
+
+# 2X+ karyotypes
+samples_2Xup <- subset(samples, samples$X_count >= 2)
+monofiles_2Xup <- file.path(dir, "monocyte_results", samples_2Xup$Kallisto_directory, "abundance.tsv")
+names(monofiles_2Xup) <- samples_2Xup$Kallisto_directory
+all(file.exists(monofiles_2Xup))
+mono.2Xup.txi <- tximport(monofiles_2Xup, type = "kallisto", tx2gene = tx2gene)
+#save(mono.2Xup.txi, file="mono.2Xup.txi.rda")
+
+# Y karyotypes
+samples_Y <- subset(samples, samples$Y_count >= 1)
+monofiles_Y <- file.path(dir, "monocyte_results", samples_Y$Kallisto_directory, "abundance.tsv")
+names(monofiles_Y) <- samples_Y$Kallisto_directory
+all(file.exists(monofiles_Y))
+mono.Y.txi <- tximport(monofiles_Y, type = "kallisto", tx2gene = tx2gene)
+#save(mono.Y.txi, file="mono.Y.txi.rda")
+
+# 0Y karyotypes
+samples_y.absent <- subset(samples, samples$Y_count == 0)
+monofiles_y.absent <- file.path(dir, "monocyte_results", samples_y.absent$Kallisto_directory, "abundance.tsv")
+names(monofiles_y.absent) <- samples_y.absent$Kallisto_directory
+all(file.exists(monofiles_y.absent))
+mono.y.absent.txi <- tximport(monofiles_y.absent, type = "kallisto", tx2gene = tx2gene)
+#save(mono.y.absent.txi, file="mono.y.absent.txi.rda")
+
+# XY and XXY only
+samples_1Y <- subset(samples, samples$Y_count == 1)
+monofiles_1Y <- file.path(dir, "monocyte_results", samples_1Y$Kallisto_directory, "abundance.tsv")
+names(monofiles_1Y) <- samples_1Y$Kallisto_directory
+all(file.exists(monofiles_1Y))
+mono.1Y.txi <- tximport(monofiles_1Y, type = "kallisto", tx2gene = tx2gene)
+#save(mono.1Y.txi, file="mono.n1Y.txi.rda")
+
+# 1X karyotypes with at least 1Y (XY and XYY only)
+samples_1X <- subset(samples, samples$X_count == 1 & samples$Y_count >= 1)
+monofiles_1X <- file.path(dir, "monocyte_results", samples_1X$Kallisto_directory, "abundance.tsv")
+names(monofiles_1X) <- samples_1X$Kallisto_directory
+all(file.exists(monofiles_1X))
+mono.1X.txi <- tximport(monofiles_1X, type = "kallisto", tx2gene = tx2gene)
+#save(mono.1X.txi, file="mono.1X.txi.rda")
+```
+
+####Find expressed genes - code adapted from Adrianna San Roman
+```{r}
+####Find expressed genes
+txi.TPM <- mono.txi$abundance
+
+#Get list of expressed genes in the cell type of interest:
+XX_sample_names <- colData[colData$Karyotype == "46XX", "Kallisto_directory"]
+XY_sample_names <- colData[colData$Karyotype == "46XY", "Kallisto_directory"]
+tpm1_genes_xx_xy_median <- function(tximport_file, XX_samples, XY_samples) {
+  kallisto_output_TPM_XY <- tximport_file$abundance[,c(XY_samples)]
+  kallisto_output_TPM_XX <- tximport_file$abundance[,c(XX_samples)]
+  median_TPM_XY <- apply(kallisto_output_TPM_XY,1,median)
+  median_TPM_XX <- apply(kallisto_output_TPM_XX,1,median)
+  #Put all of the medians together in a dataframe of expression per karyotype - numeric
+  expression_perKaryotype <- data.frame(median_TPM_XY, median_TPM_XX)
+  #Isolate the rows of the expression_TPM dataset that have at least one karyotype passing the threshold
+  expressedGenes <- expression_perKaryotype[expression_perKaryotype$median_TPM_XY >= 1 | expression_perKaryotype$median_TPM_XX >= 1,]
+  #Restrict by gene annotation file
+  expressedGenes <- expressedGenes[rownames(expressedGenes) %in% geneAnno$Gene,]
+  write.table(expressedGenes, file=paste0("expressedGenes_TPM_",tximport_file,".txt"),quote=FALSE,sep="\t")
+  #See how many genes are expressed in at least one karyotype
+  num_expressedGenes <- dim(expressedGenes)[1]
+  print(paste("Number of 'expressed' genes with median TPM >= 1 in either XX or XY samples: ", as.character(num_expressedGenes), sep=""))
+
+  #Find expressed sex chromosome genes
+  expSexChromGenes <- expressedGenes[rownames(expressedGenes) %in% sexChrom_genes,]
+  print(paste("Number of 'expressed' sex chromosome genes: ", as.character(dim(expSexChromGenes)[1]), sep=""))
+  #write.table(expSexChromGenes, file="expressedSexChromGenes_TPM.txt",quote=FALSE,sep="\t")
+
+  #Find expressed Y chromosome genes
+  expYGenes <- expressedGenes[rownames(expressedGenes) %in% Y_genes_all,]
+  print(paste("Number of 'expressed' Y chromosome genes: ", as.character(dim(expYGenes)[1]), sep=""))
+  #write.table(expYGenes, file="expressedYgenes_TPM.txt",quote=FALSE,sep="\t")
+
+  #Find expressed X chromosome genes
+  expXGenes <- expressedGenes[rownames(expressedGenes) %in% X_genes_all,]
+  print(paste("Number of 'expressed' X chromosome genes: ", as.character(dim(expXGenes)[1]), sep=""))
+  #write.table(expXGenes, file="expressedXgenes_TPM.txt",quote=FALSE,sep="\t")
+
+  #Find expressed PAR genes
+  expPARGenes <- expressedGenes[rownames(expressedGenes) %in% PAR_genes_all,]
+  print(paste("Number of 'expressed' PAR genes (small set): ", as.character(dim(expPARGenes)[1]), sep=""))
+  #write.table(expPARGenes, file="expressedPARgenes_TPM.txt",quote=FALSE,sep="\t")
+
+  #Find expressed autosome genes
+  expAutoGenes <- expressedGenes[rownames(expressedGenes) %in% autosome_genes,]
+  print(paste("Number of 'expressed' autosome genes: ", as.character(dim(expAutoGenes)[1]), sep=""))
+  #write.table(expAutoGenes, file="expressedAutosomeGenes_TPM.txt",quote=FALSE,sep="\t")
+
+  myList <- list("expressedGenes" = rownames(expressedGenes), "expSexChromGenes" = rownames(expSexChromGenes),
+                 "expYGenes" = rownames(expYGenes), "expXGenes" = rownames(expXGenes), "expPARGenes" = rownames(expPARGenes),
+                 "expAutoGenes" = rownames(expAutoGenes))
+
+  return(myList)
+}
+ 
+mono_expressed <- tpm1_genes_xx_xy_median(tximport_file = mono.txi,XX_samples = XX_sample_names, XY_samples = XY_sample_names )
+save(cd4_expressed, file="mono_expressed.rda")
+
+expressedGenes <- mono_expressed$expressedGenes
+```
+
+
+####Make DESeq2 object: X or Y dosage model
+```{r}
+####Make DESeq2 object from imported kallisto files
+library(DESeq2)
+colnames(mono.txi$abundance) <- NULL
+colnames(mono.txi$counts) <- NULL
+colnames(mono.txi$length) <- NULL
+
+mono.dds <- DESeqDataSetFromTximport(mono.txi, colData=colData, design=~ GTC_Run_ID + Y_count + X_count)
+mono.dds <- DESeq(mono.dds)
+save(mono.dds, file="mono.dds.rda")
+```
+
+####Make model with only Y karyotypes
+```{r}
+load(file="mono.Y.txi.rda")
+colData.y <- subset(colData, colData$Y_count >=1)
+
+colnames(mono.Y.txi$abundance) <- NULL
+colnames(mono.Y.txi$counts) <- NULL
+colnames(mono.Y.txi$length) <- NULL
+
+mono.y.dds <- DESeqDataSetFromTximport(mono.Y.txi, colData=colData.y, design=~ GTC_Run_ID + Y_count + X_count)
+mono.y.dds <- DESeq(mono.y.dds)
+save(mono.y.dds, file="mono.y.dds.rda")
+```
+
+####Make model with only 0Y karyotypes
+```{r}
+load(file="mono.noY.txi.rda")
+colData.noY <- subset(colData, colData$Y_count ==0)
+
+colnames(mono.y.absent.txi$abundance) <- NULL
+colnames(mono.y.absent.txi$counts) <- NULL
+colnames(mono.y.absent.txi$length) <- NULL
+
+mono.y.absent.dds <- DESeqDataSetFromTximport(mono.y.absent.txi, colData=colData.y.absent, design=~ GTC_Run_ID + X_count)
+mono.y.absent.dds <- DESeq(mono.y.absent.dds)
+save(mono.y.absent.dds, file="mono.y.absent.dds.rda")
+```
+
+####Make model with only 1Y karyotypes
+```{r}
+load(file="mono.n1Y.txi.rda")
+colData.1Y <- subset(colData, colData$Y_count ==1)
+
+colnames(mono.1Y.txi$abundance) <- NULL
+colnames(mono.1Y.txi$counts) <- NULL
+colnames(mono.1Y.txi$length) <- NULL
+
+mono.1y.dds <- DESeqDataSetFromTximport(mono.1Y.txi, colData=colData.1Y, design=~ GTC_Run_ID + X_count)
+mono.1y.dds <- DESeq(mono.1y.dds)
+
+save(mono.1y.dds, file="mono.1y.dds.rda")
+```
+
+####Make model with 1X and >=1Y karyotypes
+```{r}
+load(file="mono.1X.txi.rda")
+colData.1X <- subset(colData, colData$X_count ==1 & colData$Y_count >= 1)
+
+colnames(mono.1X.txi$abundance) <- NULL
+colnames(mono.1X.txi$counts) <- NULL
+colnames(mono.1X.txi$length) <- NULL
+
+mono.1x.dds <- DESeqDataSetFromTximport(mono.1X.txi, colData=colData.1X, design=~ GTC_Run_ID + Y_count)
+mono.1x.dds <- DESeq(mono.1x.dds)
+
+save(mono.1x.dds, file="mono.1x.dds.rda")
+```
+
+####Load model - if already created
+```{r}
+###After DESeq2 models have been generated and saved, the following code can be used to introduce the models into a new R environment 
+
+source("tximport_supplement_fixed.R")
+library("tximport")
+library("readr")
+
+setwd("") <- #set path to working directory
+
+#Set up monocyte sample metadata
+colData <- read.csv("monocyte_metadata.csv",sep="\t", row.names="SampleID")
+colData <- colData[,c("Sex","Karyotype", "X_count", "Y_count", "Sex_chrom_count", "GTC_Run_ID")]
+
+#Read in monocyte sample metadata
+load(file="mono.dds.rda")
+load(file="mono.txi.rda")
+
+load(file="mono.y.dds.rda")
+load(file="mono.y.absent.dds.rda")
+load(file="mono.1y.dds.rda")
+load(file="mono.1x.dds.rda")
+
+load(file="mono_expressed.rda")
+expressedGenes <- mono_expressed$expressedGenes
+```
+
+####Find significant DE genes
+```{r}
+source("/sca-immune/Rfunctions/Function_GenomeWideResponse.R")
+source("/sca-immune/Rfunctions/Function_SignificantResponse.R")
+source("/sca-immune/Rfunctions/Function_AutosomalResponse_221108.R")
+
+####Monocyte: Look at significantly X-responsive genes####
+#####Responsive to X dosage
+x.response <- GenomeWideResponse(mono.dds, "X_count", expressedGenes) 
+x.response.sig <- SignificantResponse(mono.dds, "X_count", expressedGenes)
+x.response.auto <- AutosomalResponse(x.response)
+x.response.sig.auto <- AutosomalResponse(x.response.sig)
+
+#write.table(x.response.auto, "monocyte_autosomal_Xresponse.txt", quote = F, sep = "\t")
+#write.table(x.response.sig.auto, "monocyte_autosomal_sig_Xresponse.txt", quote = F, sep = "\t")
+
+Xresponsive_pos <- subset(x.response.sig.auto, x.response.sig.auto$log2FoldChange >= 0)
+Xresponsive_neg <- subset(x.response.sig.auto, x.response.sig.auto$log2FoldChange <= 0)
+
+####Responsive to Y dosage
+y.response <- GenomeWideResponse(mono.dds, "Y_count", expressedGenes) 
+y.response.sig <- SignificantResponse(mono.dds, "Y_count", expressedGenes)
+y.response.auto <- AutosomalResponse(y.response)
+y.response.sig.auto <- AutosomalResponse(y.response.sig)
+
+Yresponsive_pos <- subset(y.response.sig.auto, y.response.sig.auto$log2FoldChange >= 0)
+Yresponsive_neg <- subset(y.response.sig.auto, y.response.sig.auto$log2FoldChange <= 0)
+
+#write.table(y.response.auto, "monocyte_autosomal_Yresponse.txt", quote = F, sep = "\t")
+#write.table(y.response.sig.auto, "monocyte_autosomal_sig_Yresponse.txt", quote = F, sep = "\t")
+
+####Y-present karyotypes model (XY, XXY, XYY)
+y.present.x.response <- GenomeWideResponse(mono.y.dds, "X_count", expressedGenes)
+y.present.x.response.auto <- AutosomalResponse(y.present.x.response)
+
+y.present.y.response <- GenomeWideResponse(mono.y.dds, "Y_count", expressedGenes)
+y.present.y.response.auto <- AutosomalResponse(y.present.y.response)
+
+#write.table(y.only.x.response.auto, "monocyte_autosomal_Ypresent_Xresponse.txt", quote = F, sep = "\t")
+#write.table(y.only.y.response.auto, "monocyte_autosomal_Ypresent_Yresponse.txt", quote = F, sep = "\t")
+
+####Y-absent karyotypes model (X, XX, XXX)
+y.absent.response <- GenomeWideResponse(mono.y.absent.dds, "X_count", expressedGenes)
+y.absent.response.auto <- AutosomalResponse(y.absent.response)
+
+#write.table(y.absent.response.auto, "monocyte_autosomal_Yabsent_Xresponse.txt", quote = F, sep = "\t")
+
+####1 Y karyotypes model
+y1_responsive <- GenomeWideResponse(mono.1y.dds, "X_count", expressedGenes)
+y1_responsive.auto <- AutosomalResponse(y1_responsive)
+
+#write.table(y1_responsive.auto, "monocyte_autosomal_1Y_Xresponse.txt", quote = F, sep = "\t")
+
+####1 X, 1>=Y karyotypes model
+x1_responsive <- GenomeWideResponse(mono.1x.dds, "Y_count", expressedGenes)
+x1_responsive.auto <- AutosomalResponse(x1_responsive)
+
+#write.table(x1_responsive.auto, "monocyte_autosomal_1X_Yresponse.txt", quote = F, sep = "\t")
+```
+
+###Adjust read counts
+```{r}
+mono.counts <- mono.txi$counts
+adj.mono.cts <- batch_correct(mono.counts, colData)
+adj.mono.cts <- adj.mono.cts$adj_cts
+adj.mono.cts <- adj.mono.cts[rownames(adj.mono.cts) %in% expressedGenes,]
+
+adj.mono.cts.meta <- merge(colData, t(adj.mono.cts), by = 0)
+rownames(adj.mono.cts.meta) <- adj.mono.cts.meta$Row.names
+adj.mono.cts.meta <- adj.mono.cts.meta[,-1]
+adj.mono.cts.meta <- t(adj.mono.cts.meta)
+
+norm.mono.counts <- counts(mono.dds, normalized = TRUE)
+```
+
+###Individual gene plots
+```{r}
+source("/sca-immune/Rfunctions/Function_ggGenePlot_regLine_xcount_auto.R")
+source("/sca-immune/Rfunctions/Function_ggGenePlot_regLine_ycount_auto.R")
+myPath <-  #set path to directory with deseq2 results
+myOrange <- "#d95f02"
+myOrange_light <- "#d95f0220"
+myPurple <- "#7570B3"
+myPurple_light <- "#7570B320"
+
+setwd("") #set path to directory with deseq2 results
+norm.cts <- counts(mono.dds, normalized=TRUE)
+norm.cts <- norm.cts[rownames(norm.cts) %in% x.response$Gene,]
+norm.cts.meta <- merge(colData, t(norm.cts), by = 0)
+
+library(ggplot2)
+library(doBy)
+   
+norm.cts.meta.df <- data.frame(norm.cts.meta)
+
+ggGenePlot_regLine_xcount_auto("MVB12B", norm.cts.meta.df, normBy = 1000, prefix = "CD4", myWidth=1.25, myHeight=1.25)
+ggGenePlot_regLine_ycount_auto("HCG11", norm.cts.meta.df, normBy = 1000, prefix = "CD4", myWidth=1.25, myHeight=1.25)
+
+```
+
+###Volcano plots
+```{r}
+myOrange <- "#d95f02"
+myOrange_light <- "#d95f0220"
+myPurple <- "#7570B3"
+myPurple_light <- "#7570B320"
+
+#Plot X-response -- volcano
+#choose genes to highlight on volcano plot
+examples <- c("MVB12B", "HCG11")
+
+#set up significant genes, examples genes, and non-significant genes to be different colors
+x.response.auto$significant <- "Not significant"
+x.response.auto$significant[x.response.auto$padj < 0.05] <- "Significant response"
+x.response.auto$significant[x.response.auto$Gene %in% examples] <- "Example gene"
+
+#set up example genes to be labeled
+x.response.auto$delabel <- NA
+x.response.auto$delabel[x.response.auto$significant == "Example gene"] <- x.response.auto$Gene[x.response.auto$significant == "Example gene"]
+
+
+
+
+library(ggrepel)
+p <- ggplot(data = x.response.auto, aes(x = log2FoldChange, y = -log10(padj), col=significant, label = delabel)) +
+  geom_point() +
+  scale_color_manual(values=c("#D55E00", "#40404040", "#E69F0080")) +
+  geom_text_repel(fontface = "italic") +
+  labs(title = "Monocyte: autosomal response to Chr X", x="log2FC per Chr X") +
+  geom_vline(xintercept=0, col="black") +
+  geom_hline(yintercept=0, col="black")+
+  ylim(NA,14) +
+  theme_minimal(base_size = 7)+
+  theme(legend.position="none")
+p
+ggsave("Figures/monocyte_autosomal_xresponse_volcano.pdf", p, width = 2, height = 2.75)
+
+
+#Plot Y-response -- volcano
+#set up significant genes, examples genes, and non-significant genes to be different colors
+y.response.auto$significant <- "Not significant"
+y.response.auto$significant[y.response.auto$padj < 0.05] <- "Significant response"
+y.response.auto$significant[y.response.auto$Gene %in% examples] <- "Example gene"
+
+#set up example genes to be labeled
+y.response.auto$delabel <- NA
+y.response.auto$delabel[y.response.auto$significant == "Example gene"] <- y.response.auto$Gene[y.response.auto$significant == "Example gene"]
+
+
+p <- ggplot(data = y.response.auto, aes(x = log2FoldChange, y = -log10(padj), col=significant, label = delabel)) +
+  geom_point() +
+  scale_color_manual(values=c(myPurple, "#40404040", "#7570B360")) +
+  geom_text_repel(fontface = "italic") +
+  labs(title = "Monocyte: autosomal response to Chr Y", x="log2FC per Chr Y") +
+  geom_vline(xintercept=0, col="black") +
+  geom_hline(yintercept=0, col="black")+
+  ylim(NA,14) +
+  theme_minimal(base_size = 7)+
+  theme(legend.position="none")
+p
+ggsave("Figures/monocyte_autosomal_yresponse_volcano.pdf", p, width = 2, height = 2.75)
+
+
+```
+
+###Compare X vs. Y response models
+```{r}
+overlap <- intersect(x.response.sig.auto$Gene,y.response.sig.auto$Gene)
+xy_response_all_genes <- merge(x.response.auto, y.response.auto, by = "Gene")
+write.table(xy_response_all_genes, "mono_x_and_y_responses.txt", quote = F, sep = "\t")
+xy_response_all_genes <- read.csv("mono_x_and_y_responses.txt", sep ="\t")
+
+
+#54 autosomal X-responsive genes
+#46 autosomal Y-responsive genes
+#11 autosomal X and Y-responsive overlapping genes
+#12140 protein-coding and lincRNA expressed genes
+phyper(11-1,54,12140-54,46,lower.tail= FALSE)
+
+x_or_y <- xy_response_all_genes[xy_response_all_genes$padj.x < 0.05 | xy_response_all_genes$padj.y < 0.05,]
+
+x_and_y <- xy_response_all_genes[xy_response_all_genes$padj.x < 0.05 & xy_response_all_genes$padj.y < 0.05,]
+
+source("/sca-immune/Rfunctions/Function_makeSymmetric_X_Y.R")
+source("/sca-immune/code/Rfunctions/Function_getMaxMin.R")
+source("/sca-immune/Rfunctions/Function_paper2_corrPlot_deming_20230419.R")
+
+#Deming regression with confidence intervals
+##Monocyte X response vs. monocyte Y response
+#all expressed genes
+myData <- xy_response_all_genes[,c("Gene","log2FoldChange.x", "lfcSE.x", "padj.x", "log2FoldChange.y", "lfcSE.y", "padj.y")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_err(myData, myTitle = ".mono_Xresponse_v_Yresponse_autosomal_genes_deming_w_err.pdf", myXlab = "log2FC per Chr X", myYlab = "log2FC per Chr Y", myPlotTitle = "Monocyte: all autosomal genes", myWidth=2.25, myHeight=2.25, demingBehind = TRUE)
+
+
+#significant X- or Y-responsive genes
+x_or_y$model <- "#6e02d980"
+x_or_y$model[x_or_y$padj.x <0.05] <- "#D95F0280"
+x_or_y$model[x_or_y$padj.x <0.05 & x_or_y$padj.y < 0.05] <- "#40404040"
+myData <- x_or_y[,c("Gene","log2FoldChange.x", "lfcSE.x", "padj.x", "log2FoldChange.y", "lfcSE.y", "padj.y", "model")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj", "model")
+paper2_corrPlot_deming_err(myData, myTitle = "Figures/mono_chrX_v_chrY_sig_err.pdf", myXlab = "log2FC per Chr X", myYlab = "log2FC per Chr Y", myPlotTitle = "Monocyte: Chr X or Chr Y responsive", myWidth=2.25, myHeight=2.25, pointsCol = myData$model)
+
+
+x_or_y$significance <- "X-response only (42 genes)"
+x_or_y$significance[x_or_y$padj.y < 0.05] <- "Y-response only (31 genes)"
+x_or_y$significance[x_or_y$padj.x < 0.05 & x_or_y$padj.y < 0.05] <- "Both (10 genes)"
+
+#some stats
+x.only.sig <- x_or_y[x_or_y$significance == "X-response only (42 genes)",]
+cor.test(x.only.sig$log2FoldChange.x, x.only.sig$log2FoldChange.y)$p.value
+cor.test(xy_response_all_genes$log2FoldChange.x, xy_response_all_genes$log2FoldChange.y)$p.value
+
+
+```
+
+#X vs. Y responsive Venn diagram
+```{r}
+x_y.auto <- list(x.response.sig.auto$Gene, y.response.sig.auto$Gene)
+names(x_y.auto) <- c("Chr X responsive", "Chr Y responsive")
+pdf(file = "mono.x_vs_y_autosomal_venn.pdf", width = 4, height = 3)
+plot(euler(x_y.auto), quantities = TRUE)
+dev.off()
+
+```
+
+#Compare all samples model ("full model") vs. Y-present model
+```{r}
+#Y-response, comparing model using all samples versus model with just Y karyotypes
+all.y.present.xresponse <- merge(x.response.auto, y.only.x.response.auto, by = "Gene")
+all.y.present.yresponse <- merge(y.response.auto, y.only.y.response.auto, by = "Gene")
+
+cor.test(all.y.present.xresponse$log2FoldChange.x, all.y.present.xresponse$log2FoldChange.y, method = "pearson")$p.value
+cor.test(all.y.present.yresponse$log2FoldChange.x, all.y.present.yresponse$log2FoldChange.y, method = "pearson")$p.value
+
+all.y.present.xresponseSig <- merge(x.response.sig.auto, y.only.x.response.auto, by = "Gene")
+all.y.present.yresponseSig <- merge(y.response.sig.auto, y.only.y.response.auto, by = "Gene")
+
+cor.test(all.y.present.xresponseSig$log2FoldChange.x, all.y.present.xresponseSig$log2FoldChange.y, method = "pearson")
+cor.test(all.y.present.yresponseSig$log2FoldChange.x, all.y.present.yresponseSig$log2FoldChange.y, method = "pearson")
+
+
+##Deming confidence intervals
+source("/sca-immune/Rfunctions/Function_makeSymmetric_X_Y.R")
+source("/sca-immune/Rfunctions/Function_getMaxMin.R")
+source("/sca-immune/Rfunctions/Function_paper2_corrPlot_deming_20230419.R")
+
+myData <- all.y.present.xresponseSig[,c("Gene","log2FoldChange.x", "lfcSE.x", "padj.x", "log2FoldChange.y", "lfcSE.y", "padj.y")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_err(myData, myTitle = "Figures/monocyte.full_vs_Ypresent_model_XresponseAutoSigGenes_deming_err.pdf", myXlab = "Full model, log2FC per Chr X", myYlab = ">1 Y model, log2FC per Chr X", myPlotTitle = "Monocyte: Full model vs. >1 Y model", myWidth=2.25, myHeight=2.25, demingBehind = TRUE)
+
+
+myData <- all.y.present.yresponseSig[,c("Gene","log2FoldChange.x", "lfcSE.x", "padj.x", "log2FoldChange.y", "lfcSE.y", "padj.y")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_err(myData, myTitle = "Figures/monocyte.full_vs_Ypresent_model_YresponseAutoSigGenes_deming_err.pdf", myXlab = "Full model, log2FC per Chr Y", myYlab = ">1 Y model, log2FC per Chr Y", myPlotTitle = "Monocyte: Full model vs. >1 Y model", myWidth=2.25, myHeight=2.25, demingBehind = TRUE)
+
+###all expressed genes
+myData <- all.y.present.xresponse[,c("Gene","log2FoldChange.x", "lfcSE.x", "padj.x", "log2FoldChange.y", "lfcSE.y", "padj.y")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_err(myData, myTitle = "Figures/monocyte.full_vs_Ypresent_model_XresponseAutoGenes_deming_err.pdf", myXlab = "Full model, log2FC per Chr X", myYlab = ">1 Y model, log2FC per Chr X", myPlotTitle = "Monocyte: Full model vs. >1 Y model", myWidth=2.25, myHeight=2.25, demingBehind = TRUE)
+
+
+myData <- all.y.present.yresponse_to_plot[,c("Gene","log2FoldChange.x", "lfcSE.x", "padj.x", "log2FoldChange.y", "lfcSE.y", "padj.y")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_err(myData, myTitle = "Figures/monocyte.full_vs_Ypresent_model_YresponseAutoGenes_deming_err.pdf", myXlab = "Full model, log2FC per Chr Y", myYlab = ">1 Y model, log2FC per Chr Y", myPlotTitle = "Monocyte: Full model vs. >1 Y model", myWidth=2.25, myHeight=2.25, demingBehind = TRUE)
+
+
+```
+
+####Compare all samples model ("full model") vs. Y-absent ("no Y") model
+```{r}
+all.y.absent.xresponse <- merge(x.response.auto, y.absent.response.auto, by = "Gene")
+cor.test(all.y.absent.xresponse$log2FoldChange.x, all.y.absent.xresponse$log2FoldChange.y, method = "pearson")
+cor.test(all.y.absent.xresponse$log2FoldChange.x, all.y.absent.xresponse$log2FoldChange.y, method = "pearson")$p.value
+
+all.y.absent.xresponseSig <- merge(x.response.sig.auto, y.absent.response.auto, by = "Gene")
+cor.test(all.y.absent.xresponseSig$log2FoldChange.x, all.y.absent.xresponseSig$log2FoldChange.y, method = "pearson")$p.value
+
+
+##Deming confidence intervals
+source("/sca-immune/Rfunctions/Function_makeSymmetric_X_Y.R")
+source("/sca-immune/Rfunctions/Function_getMaxMin.R")
+source("/sca-immune/Rfunctions/Function_paper2_corrPlot_deming_20230419.R")
+
+###significantly Chr X responsive genes
+myData <- all.noY.xresponseSig[,c("Gene","log2FoldChange.x", "lfcSE.x", "padj.x", "log2FoldChange.y", "lfcSE.y", "padj.y")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_err(myData, myTitle = "Figures/mono.full_vs_noY_model_XresponseSigAutoGenes_deming_err.pdf", myXlab = "Full model, log2FC per Chr X", myYlab = "no Y model, log2FC per Chr X", myPlotTitle = "Monocyte: Full model vs. no Y model", myWidth=2.25, myHeight=2.25, demingBehind = TRUE)
+
+###all autosomal expressed genes
+myData <- all.noY.xresponse[,c("Gene","log2FoldChange.x", "lfcSE.x", "padj.x", "log2FoldChange.y", "lfcSE.y", "padj.y")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_err(myData, myTitle = "Figures/mono.full_vs_noY_model_XresponseAutoGenes_deming_err.pdf", myXlab = "Full model, log2FC per Chr X", myYlab = "no Y model, log2FC per Chr X", myPlotTitle = "Monocyte: Full model vs. no Y model", myWidth=2.25, myHeight=2.25, demingBehind = TRUE)
+
+
+```
+

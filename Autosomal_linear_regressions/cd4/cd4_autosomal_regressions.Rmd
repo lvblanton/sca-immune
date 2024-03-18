@@ -1,0 +1,578 @@
+---
+title: "Human CD4+ RNA-Seq analysis"
+author: "Laura Blanton"
+output: html_document
+---
+
+####Gene annotations
+```{r}
+geneAnno <- read.delim(file="/sca-immune/Annotations/geneAnno_proteinCoding_lncRNA_v107_20221021.txt", stringsAsFactors = FALSE)[,c(2,1,3:6,8,14,9)]
+colnames(geneAnno)[c(1,4,5,6)] <- c("Gene","chr","start","stop")
+geneAnno <- geneAnno[! duplicated(geneAnno$gene_name.107) & ! geneAnno$gene_name.107 %in% c("") & ! duplicated(geneAnno$Gene),]
+geneAnno_x <- geneAnno[geneAnno$chr == "chrX",]
+geneAnno_y <- geneAnno[geneAnno$chr == "chrY",]
+X_genes_all <-as.character(geneAnno[grep("chrX", geneAnno$chr), ]$Gene)
+Y_genes_all <-as.character(geneAnno[grep("chrY", geneAnno$chr), ]$Gene)
+sexChrom_genes <- c(X_genes_all,Y_genes_all)
+PAR1_genes <- geneAnno_x[geneAnno_x$start < 2691188,]$Gene
+PAR2_genes <- c("SPRY3","VAMP7","IL9R","WASH6P")
+PAR_genes_all <- c(PAR1_genes,PAR2_genes)
+NPX_genes <- X_genes_all[! X_genes_all %in% PAR_genes_all]
+NPY_genes <- Y_genes_all[! Y_genes_all %in% PAR_genes_all]
+autosome_genes <- geneAnno[! geneAnno$chr %in% c("chrX","chrY"),"Gene"]
+X_ancestral_genes = c("SOX3", "ZFX", "DDX3X", "KDM6A","KDM5C","USP9X","EIF1AX","RPS4X","AMELX","TXLNG","TMSB4X","NLGN4X","TBL1X","PRKX")
+Y_ancestral_genes = c("SRY", "ZFY", "DDX3Y", "UTY","KDM5D","USP9Y","EIF1AY","RPS4Y1","RPS4Y2", "AMELY","TXLNGY","TMSB4Y","NLGN4Y","TBL1Y","PRKY")
+XY_ancestral_genes = c("SOX3", "ZFX", "DDX3X", "KDM6A","KDM5C","USP9X","EIF1AX","RPS4X","AMELX","TXLNG","TMSB4X","NLGN4X","TBL1X","PRKX","SRY", "ZFY", "DDX3Y", "UTY","KDM5D","USP9Y","EIF1AY","RPS4Y1","RPS4Y2", "AMELY","TXLNGY","TMSB4Y","NLGN4Y","TBL1Y","PRKY")
+
+```
+
+####Load metadata 
+```{r}
+library("tximport")
+library("readr")
+
+setwd("") #set path to working directory
+dir <-  #set path to directory with metadata
+myPath <-  #set path to directory with kallisto results
+
+#Set up annotation
+annofile <-read.delim(file="annotation_with_ERCC.txt" ,sep = " ") #path to annotation_with_ERCC.txt
+tx2gene <- data.frame("TXNAME"=annofile$transcript_id, "GENEID"=annofile$gene_name)
+
+#Set up file lists and metadata
+samples <- read.delim(file.path(dir, "CD4_metadata.csv"), sep = "\t", header = TRUE)
+cd4files <- file.path(dir, "CD4_results", samples$Kallisto_directory, "abundance.tsv")
+names(cd4files) <- samples$Kallisto_directory
+
+#Set up CD4 sample metadata
+colData <- read.delim(file.path(dir, "CD4_metadata.csv"), sep="\t", header = TRUE, row.names="SampleID")
+colData <- colData[,c("Sex","Karyotype", "X_count", "Y_count", "Sex_chrom_count", "GTC_Run_ID")]
+
+```
+
+####Import CD4+ T cell RNA-Seq data
+```{r}
+#####This is code for importing kallisto results generated from raw fastq files; the raw fastq files are accessible at dbGaP accession # phs002481. From the raw data, run the following kallisto command: 
+# kallisto quant -i KALLISTO_INDEX_FILE -t 16 --bias --plaintext -o  /kallisto_OUTPUT_FOLDER/sampleName/ file1fastq.gz file2fastq.gz 
+
+# all CD4 files
+all(file.exists(cd4files))
+cd4.txi <- tximport(cd4files, type = "kallisto", tx2gene = tx2gene)
+#save(cd4.txi, file="cd4.txi.rda")
+
+# 2X+ karyotypes
+samples_2Xup <- subset(samples, samples$X_count >= 2)
+cd4files_2Xup <- file.path(dir, "CD4_results", samples_2Xup$Kallisto_directory, "abundance.tsv")
+names(cd4files_2Xup) <- samples_2Xup$Kallisto_directory
+all(file.exists(cd4files_2Xup))
+cd4.2Xup.txi <- tximport(cd4files_2Xup, type = "kallisto", tx2gene = tx2gene)
+#save(cd4.2Xup.txi, file="cd4.2Xup.txi.rda")
+
+#Y karyotypes
+samples_Y <- subset(samples, samples$Y_count >= 1)
+cd4files_Y <- file.path(dir, "CD4_results", samples_Y$Kallisto_directory, "abundance.tsv")
+names(cd4files_Y) <- samples_Y$Kallisto_directory
+all(file.exists(cd4files_Y))
+cd4.Y.txi <- tximport(cd4files_Y, type = "kallisto", tx2gene = tx2gene)
+#save(cd4.Y.txi, file="cd4.Y.txi.rda")
+
+# 0Y karyotypes
+samples_y.absent <- subset(samples, samples$Y_count == 0)
+cd4files_y.absent <- file.path(dir, "CD4_results", samples_y.absent$Kallisto_directory, "abundance.tsv")
+names(cd4files_y.absent) <- samples_y.absent$Kallisto_directory
+all(file.exists(cd4files_y.absent))
+cd4.y.absent.txi <- tximport(cd4files_y.absent, type = "kallisto", tx2gene = tx2gene)
+#save(cd4.y.absent.txi, file="cd4.y.absent.txi.rda")
+
+# just 1Y karyotypes (XY and XXY only)
+samples_1Y <- subset(samples, samples$Y_count == 1)
+cd4files_1Y <- file.path(dir, "CD4_results", samples_1Y$Kallisto_directory, "abundance.tsv")
+names(cd4files_1Y) <- samples_1Y$Kallisto_directory
+all(file.exists(cd4files_1Y))
+cd4.1Y.txi <- tximport(cd4files_1Y, type = "kallisto", tx2gene = tx2gene)
+#save(cd4.1Y.txi, file="cd4.n1Y.txi.rda")
+
+# 1X karyotypes with at least 1Y (XY and XYY only)
+samples_1X <- subset(samples, samples$X_count == 1 & samples$Y_count >= 1)
+cd4files_1X <- file.path(dir, "CD4_results", samples_1X$Kallisto_directory, "abundance.tsv")
+names(cd4files_1X) <- samples_1X$Kallisto_directory
+all(file.exists(cd4files_1X))
+cd4.1X.txi <- tximport(cd4files_1X, type = "kallisto", tx2gene = tx2gene)
+#save(cd4.1X.txi, file="cd4.1X.txi.rda")
+```
+
+####Find expressed genes - code adapted from Adrianna San Roman
+```{r}
+####Find expressed genes
+txi.TPM <- cd4.txi$abundance
+
+#Get list of expressed genes in the cell type of interest:
+XX_sample_names <- colData[colData$Karyotype == "46XX", "Kallisto_directory"]
+XY_sample_names <- colData[colData$Karyotype == "46XY", "Kallisto_directory"]
+tpm1_genes_xx_xy_median <- function(tximport_file, XX_samples, XY_samples) {
+  kallisto_output_TPM_XY <- tximport_file$abundance[,c(XY_samples)]
+  kallisto_output_TPM_XX <- tximport_file$abundance[,c(XX_samples)]
+  median_TPM_XY <- apply(kallisto_output_TPM_XY,1,median)
+  median_TPM_XX <- apply(kallisto_output_TPM_XX,1,median)
+  #Put all of the medians together in a dataframe of expression per karyotype - numeric
+  expression_perKaryotype <- data.frame(median_TPM_XY, median_TPM_XX)
+  #Isolate the rows of the expression_TPM dataset that have at least one karyotype passing the threshold
+  expressedGenes <- expression_perKaryotype[expression_perKaryotype$median_TPM_XY >= 1 | expression_perKaryotype$median_TPM_XX >= 1,]
+  #Restrict by gene annotation file
+  expressedGenes <- expressedGenes[rownames(expressedGenes) %in% geneAnno$Gene,]
+  write.table(expressedGenes, file=paste0("expressedGenes_TPM_",tximport_file,".txt"),quote=FALSE,sep="\t")
+  #See how many genes are expressed in at least one karyotype
+  num_expressedGenes <- dim(expressedGenes)[1]
+  print(paste("Number of 'expressed' genes with median TPM >= 1 in either XX or XY samples: ", as.character(num_expressedGenes), sep=""))
+
+  #Find expressed sex chromosome genes
+  expSexChromGenes <- expressedGenes[rownames(expressedGenes) %in% sexChrom_genes,]
+  print(paste("Number of 'expressed' sex chromosome genes: ", as.character(dim(expSexChromGenes)[1]), sep=""))
+  #write.table(expSexChromGenes, file="expressedSexChromGenes_TPM.txt",quote=FALSE,sep="\t")
+
+  #Find expressed Y chromosome genes
+  expYGenes <- expressedGenes[rownames(expressedGenes) %in% Y_genes_all,]
+  print(paste("Number of 'expressed' Y chromosome genes: ", as.character(dim(expYGenes)[1]), sep=""))
+  #write.table(expYGenes, file="expressedYgenes_TPM.txt",quote=FALSE,sep="\t")
+
+  #Find expressed X chromosome genes
+  expXGenes <- expressedGenes[rownames(expressedGenes) %in% X_genes_all,]
+  print(paste("Number of 'expressed' X chromosome genes: ", as.character(dim(expXGenes)[1]), sep=""))
+  #write.table(expXGenes, file="expressedXgenes_TPM.txt",quote=FALSE,sep="\t")
+
+  #Find expressed PAR genes
+  expPARGenes <- expressedGenes[rownames(expressedGenes) %in% PAR_genes_all,]
+  print(paste("Number of 'expressed' PAR genes (small set): ", as.character(dim(expPARGenes)[1]), sep=""))
+  #write.table(expPARGenes, file="expressedPARgenes_TPM.txt",quote=FALSE,sep="\t")
+
+  #Find expressed autosome genes
+  expAutoGenes <- expressedGenes[rownames(expressedGenes) %in% autosome_genes,]
+  print(paste("Number of 'expressed' autosome genes: ", as.character(dim(expAutoGenes)[1]), sep=""))
+  #write.table(expAutoGenes, file="expressedAutosomeGenes_TPM.txt",quote=FALSE,sep="\t")
+
+  myList <- list("expressedGenes" = rownames(expressedGenes), "expSexChromGenes" = rownames(expSexChromGenes),
+                 "expYGenes" = rownames(expYGenes), "expXGenes" = rownames(expXGenes), "expPARGenes" = rownames(expPARGenes),
+                 "expAutoGenes" = rownames(expAutoGenes))
+
+  return(myList)
+}
+ 
+cd4_expressed <- tpm1_genes_xx_xy_median(tximport_file = cd4.txi,XX_samples = XX_sample_names, XY_samples = XY_sample_names )
+save(cd4_expressed, file="cd4_expressed.rda")
+
+expressedGenes <- cd4_expressed$expressedGenes
+```
+
+####Make DESeq2 object: X or Y dosage model
+```{r}
+####Make DESeq2 object from imported kallisto files
+library(DESeq2)
+colnames(cd4.txi$abundance) <- NULL
+colnames(cd4.txi$counts) <- NULL
+colnames(cd4.txi$length) <- NULL
+
+cd4.dds <- DESeqDataSetFromTximport(cd4.txi, colData=colData, design=~ GTC_Run_ID + Y_count + X_count)
+cd4.dds <- DESeq(cd4.dds)
+save(cd4.dds, file="cd4.dds.rda")
+```
+
+####Make model only with karyotypes that have at least 1 Chr Y
+```{r}
+load(file="cd4.Y.txi.rda")
+colData.y <- subset(colData, colData$Y_count >=1)
+
+colnames(cd4.Y.txi$abundance) <- NULL
+colnames(cd4.Y.txi$counts) <- NULL
+colnames(cd4.Y.txi$length) <- NULL
+
+cd4.y.dds <- DESeqDataSetFromTximport(cd4.Y.txi, colData=colData.y, design=~ GTC_Run_ID + Y_count + X_count)
+cd4.y.dds <- DESeq(cd4.y.dds)
+save(cd4.y.dds, file="cd4.y.dds.rda")
+```
+
+####Make model with only 0Y karyotypes
+```{r}
+load(file="cd4.y.absent.txi.rda")
+colData.y.absent <- subset(colData, colData$Y_count ==0)
+
+colnames(cd4.y.absent.txi$abundance) <- NULL
+colnames(cd4.y.absent.txi$counts) <- NULL
+colnames(cd4.y.absent.txi$length) <- NULL
+
+cd4.y.absent.dds <- DESeqDataSetFromTximport(cd4.y.absent.txi, colData=colData.y.absent, design=~ GTC_Run_ID + X_count)
+cd4.y.absent.dds <- DESeq(cd4.y.absent.dds)
+save(cd4.y.absent.dds, file="cd4.y.absent.dds.rda")
+```
+
+####Make model with only 1Y karyotypes
+```{r}
+load(file="cd4.n1Y.txi.rda")
+colData.1Y <- subset(colData, colData$Y_count ==1)
+
+colnames(cd4.1Y.txi$abundance) <- NULL
+colnames(cd4.1Y.txi$counts) <- NULL
+colnames(cd4.1Y.txi$length) <- NULL
+
+cd4.1y.dds <- DESeqDataSetFromTximport(cd4.1Y.txi, colData=colData.1Y, design=~ GTC_Run_ID + X_count)
+cd4.1y.dds <- DESeq(cd4.1y.dds)
+
+save(cd4.1y.dds, file="cd4.1y.dds.rda")
+```
+
+####Make model with 1X and >=1Y karyotypes
+```{r}
+load(file="cd4.1X.txi.rda")
+colData.1X <- subset(colData, colData$X_count ==1 & colData$Y_count >= 1)
+
+colnames(cd4.1X.txi$abundance) <- NULL
+colnames(cd4.1X.txi$counts) <- NULL
+colnames(cd4.1X.txi$length) <- NULL
+
+cd4.1x.dds <- DESeqDataSetFromTximport(cd4.1X.txi, colData=colData.1X, design=~ GTC_Run_ID + Y_count)
+cd4.1x.dds <- DESeq(cd4.1x.dds)
+
+save(cd4.1x.dds, file="cd4.1x.dds.rda")
+```
+
+####Load models - if already created
+```{r}
+###After DESeq2 models have been generated and saved, the following code can be used to introduce the models into a new R environment 
+
+source("tximport_supplement_fixed.R")
+library("tximport")
+library("readr")
+
+setwd("") <- #set path to working directory
+
+#Set up CD4 sample metadata
+colData <- read.csv("CD4_metadata.csv",sep="\t", row.names="SampleID")
+colData <- colData[,c("Sex","Karyotype", "X_count", "Y_count", "Sex_chrom_count", "GTC_Run_ID")]
+
+load(file="cd4.dds.rda")
+load(file="cd4.txi.rda")
+
+load(file="cd4.y.dds.rda")
+load(file="cd4.y.absent.dds.rda")
+load(file="cd4.1y.dds.rda")
+load(file="cd4.1x.dds.rda")
+
+load(file="cd4_expressed.rda")
+expressedGenes <- cd4_expressed$expressedGenes
+
+```
+
+####Find significant DE genes
+```{r}
+source("/sca-immune/Rfunctions/Function_GenomeWideResponse.R")
+source("/sca-immune/Rfunctions/Function_SignificantResponse.R")
+source("/sca-immune/Rfunctions/Function_AutosomalResponse_221108.R")
+
+####CD4+ T cells: Look at significantly X-responsive genes####
+#####Responsive to X dosage
+x.response <- GenomeWideResponse(cd4.dds, "X_count", expressedGenes) 
+x.response.sig <- SignificantResponse(cd4.dds, "X_count", expressedGenes)
+x.response.auto <- AutosomalResponse(x.response)
+x.response.sig.auto <- AutosomalResponse(x.response.sig)
+
+#write.table(x.response.auto, "cd4_autosomal_Xresponse.txt", quote = F, sep = "\t")
+#write.table(x.response.sig.auto, "cd4_autosomal_sig_Xresponse.txt", quote = F, sep = "\t")
+
+Xresponsive_pos <- subset(x.response.sig.auto, x.response.sig.auto$log2FoldChange >= 0)
+Xresponsive_neg <- subset(x.response.sig.auto, x.response.sig.auto$log2FoldChange <= 0)
+
+####Responsive to Y dosage
+y.response <- GenomeWideResponse(cd4.dds, "Y_count", expressedGenes) 
+y.response.sig <- SignificantResponse(cd4.dds, "Y_count", expressedGenes)
+y.response.auto <- AutosomalResponse(y.response)
+y.response.sig.auto <- AutosomalResponse(y.response.sig)
+
+Yresponsive_pos <- subset(y.response.sig.auto, y.response.sig.auto$log2FoldChange >= 0)
+Yresponsive_neg <- subset(y.response.sig.auto, y.response.sig.auto$log2FoldChange <= 0)
+
+#write.table(y.response.auto, "cd4_autosomal_Yresponse.txt", quote = F, sep = "\t")
+#write.table(y.response.sig.auto, "cd4_autosomal_sig_Yresponse.txt", quote = F, sep = "\t")
+
+####Y-present karyotypes model (XY, XXY, XYY)
+y.present.x.response <- GenomeWideResponse(cd4.y.dds, "X_count", expressedGenes)
+y.present.x.response.auto <- AutosomalResponse(y.present.x.response)
+
+y.present.y.response <- GenomeWideResponse(cd4.y.dds, "Y_count", expressedGenes)
+y.present.y.response.auto <- AutosomalResponse(y.present.y.response)
+
+#write.table(y.present.x.response.auto, "cd4_autosomal_Ypresent_Xresponse.txt", quote = F, sep = "\t")
+#write.table(y.present.y.response.auto, "cd4_autosomal_Ypresent_Yresponse.txt", quote = F, sep = "\t")
+
+####Y-absent karyotypes model (X, XX, XXX)
+y.absent.response <- GenomeWideResponse(cd4.y.absent.dds, "X_count", expressedGenes)
+y.absent.response.auto <- AutosomalResponse(y.absent.response)
+
+#write.table(y.absent.response.auto, "cd4_autosomal_Yabsent_Xresponse.txt", quote = F, sep = "\t")
+
+####1 Y karyotypes model
+y1_responsive <- GenomeWideResponse(cd4.1y.dds, "X_count", expressedGenes)
+y1_responsive.auto <- AutosomalResponse(y1_responsive)
+
+#write.table(y1_responsive.auto, "cd4_autosomal_1Y_Xresponse.txt", quote = F, sep = "\t")
+
+####1 X, 1>=Y karyotypes model
+x1_responsive <- GenomeWideResponse(cd4.1x.dds, "Y_count", expressedGenes)
+x1_responsive.auto <- AutosomalResponse(x1_responsive)
+
+#write.table(x1_responsive.auto, "cd4_autosomal_1X_Yresponse.txt", quote = F, sep = "\t")
+```
+
+###Adjust read counts
+```{r}
+cd4.counts <- cd4.txi$counts
+adj.cd4.cts <- batch_correct(cd4.counts, colData)
+adj.cd4.cts <- adj.cd4.cts$adj_cts
+adj.cd4.cts <- adj.cd4.cts[rownames(adj.cd4.cts) %in% expressedGenes,]
+
+adj.cd4.cts.meta <- merge(colData, t(adj.cd4.cts), by = 0)
+rownames(adj.cd4.cts.meta) <- adj.cd4.cts.meta$Row.names
+adj.cd4.cts.meta <- adj.cd4.cts.meta[,-1]
+adj.cd4.cts.meta <- t(adj.cd4.cts.meta)
+
+norm.cd4.counts <- counts(cd4.dds, normalized = TRUE)
+```
+
+###Individual gene plots
+```{r}
+source("/sca-immune/Rfunctions/Function_ggGenePlot_regLine_xcount_auto.R")
+source("/sca-immune/Rfunctions/Function_ggGenePlot_regLine_ycount_auto.R")
+myPath <-  #set path to directory with deseq2 results
+myOrange <- "#d95f02"
+myOrange_light <- "#d95f0220"
+myPurple <- "#7570B3"
+myPurple_light <- "#7570B320"
+
+setwd("") #set path to directory with deseq2 results
+norm.cts <- counts(cd4.dds, normalized=TRUE)
+norm.cts <- norm.cts[rownames(norm.cts) %in% x.response$Gene,]
+norm.cts.meta <- merge(colData, t(norm.cts), by = 0)
+
+library(ggplot2)
+library(doBy)
+   
+norm.cts.meta.df <- data.frame(norm.cts.meta)
+
+ggGenePlot_regLine_xcount_auto("COL6A1", norm.cts.meta.df, normBy = 1000, prefix = "CD4", myWidth=1.25, myHeight=1.25)
+ggGenePlot_regLine_ycount_auto("IL1R1", norm.cts.meta.df, normBy = 1000, prefix = "CD4", myWidth=1.25, myHeight=1.25)
+
+```
+
+###Volcano plots
+```{r}
+myOrange <- "#d95f02"
+myOrange_light <- "#d95f0220"
+myPurple <- "#7570B3"
+myPurple_light <- "#7570B320"
+
+#Plot X-response -- volcano
+#choose genes to highlight on volcano plot
+examples <- c("COL6A1", "IL1R1")
+
+#set up significant genes, examples genes, and non-significant genes to be different colors
+x.response.auto$significant <- "Not significant"
+x.response.auto$significant[x.response.auto$padj < 0.05] <- "Significant response"
+x.response.auto$significant[x.response.auto$Gene %in% examples] <- "Example gene"
+
+#set up example genes to be labeled
+x.response.auto$delabel <- NA
+x.response.auto$delabel[x.response.auto$significant == "Example gene"] <- x.response.auto$Gene[x.response.auto$significant == "Example gene"]
+
+#remove outlier due to low expression that inflates log2FC value
+x.response.auto.plot <- x.response.auto[!x.response.auto$Gene == "OVCH1-AS1",]
+
+library(ggrepel)
+p <- ggplot(data = x.response.auto.plot, aes(x = log2FoldChange, y = -log10(padj), col=significant, label = delabel)) +
+  geom_point() +
+  scale_color_manual(values=c("#D55E00", "#40404040", "#E69F0080")) +
+  geom_text_repel(fontface = "italic", size = 3) +
+  labs(title = "CD4+ T cell: autosomal response to Chr X", x="log2FC per Chr X") +
+  geom_vline(xintercept=0, col="black") +
+  geom_hline(yintercept=0, col="black")+
+  xlim(-1.55,1.2)+
+  ylim(NA, 16.5)+
+  theme_minimal(base_size = 7)+
+  theme(legend.position="none")
+ggsave("Figures/cd4_autosomal_xresponse_volcano.pdf", p, width = 2, height = 2.75)
+
+
+#Plot Y-response -- volcano
+#set up significant genes, examples genes, and non-significant genes to be different colors
+y.response.auto$significant <- "Not significant"
+y.response.auto$significant[y.response.auto$padj < 0.05] <- "Significant response"
+y.response.auto$significant[y.response.auto$Gene %in% examples] <- "Example gene"
+
+#set up example genes to be labeled
+y.response.auto$delabel <- NA
+y.response.auto$delabel[y.response.auto$significant == "Example gene"] <- y.response.auto$Gene[y.response.auto$significant == "Example gene"]
+y.response.auto.plot <- y.response.auto[!y.response.auto$Gene == "OVCH1-AS1",]
+
+p <- ggplot(data = y.response.auto.plot, aes(x = log2FoldChange, y = -log10(padj), col=significant, label = delabel)) +
+  geom_point() +
+  scale_color_manual(values=c(myPurple, "#40404040", "#7570B360")) +
+  geom_text_repel(fontface = "italic", size = 3) +
+  labs(title = "CD4+ T cell: autosomal response to Chr Y", x="log2FC per Chr Y") +
+  geom_vline(xintercept=0, col="black") +
+  geom_hline(yintercept=0, col="black")+
+  xlim(-1.55,1.2)+
+  ylim(NA, 16.5)+
+  theme_minimal(base_size = 7)+
+  theme(legend.position="none")
+p
+ggsave("Figures/cd4_autosomal_yresponse_volcano.pdf", p, width = 2, height = 2.75)
+
+```
+
+###Compare X vs. Y response models
+```{r}
+overlap <- intersect(x.response.sig.auto$Gene,y.response.sig.auto$Gene)
+xy_response_all_genes <- merge(x.response.auto, y.response.auto, by = "Gene")
+#write.table(xy_response_all_genes, "cd4_x_and_y_response_expressed_genes.txt", quote = F, sep = "\t")
+xy_response_all_genes <- read.csv("cd4_x_and_y_response_expressed_genes.txt", sep = "\t")
+
+
+#202 autosomal X-responsive genes
+#122 autosomal Y-responsive genes
+#56 autosomal X and Y-responsive overlapping genes
+#12756 protein-coding and lincRNA expressed genes
+phyper(56-1,202,12756-202,122,lower.tail= FALSE)
+
+x_or_y <- xy_response_all_genes[xy_response_all_genes$padj.x < 0.05 | xy_response_all_genes$padj.y < 0.05,]
+x_and_y <- xy_response_all_genes[xy_response_all_genes$padj.x < 0.05 & xy_response_all_genes$padj.y < 0.05,]
+
+xy_response_all_genes_to_plot <- xy_response_all_genes[!xy_response_all_genes$Gene == "OVCH1-AS1",]
+x_or_y_to_plot <- x_or_y[!x_or_y$Gene == "OVCH1-AS1",]
+x.response.auto_noOVCH1 <- x.response.auto[!x.response.auto$Gene == "OVCH1-AS1",]
+
+source("/sca-immune/Rfunctions/Function_makeSymmetric_X_Y.R")
+source("/sca-immune/Rfunctions/Function_getMaxMin.R")
+source("/sca-immune/Rfunctions/Function_paper2_corrPlot_deming_20230419.R")
+
+#Deming regression with confidence intervals
+##CD4 X response vs. CD4 Y response
+#all expressed genes
+myData <- xy_response_all_genes_to_plot[,c("Gene","log2FoldChange.x", "lfcSE.x", "padj.x", "log2FoldChange.y", "lfcSE.y", "padj.y")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_err(myData, myTitle = "cd4_Xresponse_v_Yresponse_autosomal_genes_deming_w_err.pdf", myXlab = "log2FC per Chr X", myYlab = "log2FC per Chr Y", myPlotTitle = "CD4+ T cells: all autosomal genes", myWidth=2.25, myHeight=2.25, demingBehind = TRUE)
+
+
+#significant X- or Y-responsive genes
+x_or_y_to_plot$model <- "#6e02d980"
+x_or_y_to_plot$model[x_or_y_to_plot$padj.x <0.05] <- "#D95F0280"
+x_or_y_to_plot$model[x_or_y_to_plot$padj.x <0.05 & x_or_y_to_plot$padj.y < 0.05] <- "#40404040"
+myData <- x_or_y_to_plot[,c("Gene","log2FoldChange.x", "lfcSE.x", "padj.x", "log2FoldChange.y", "lfcSE.y", "padj.y", "model")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj", "model")
+paper2_corrPlot_deming_err(myData, myTitle = "Figures/cd4_chrX_v_chrY_sig_err.pdf", myXlab = "log2FC per Chr X", myYlab = "log2FC per Chr Y", myPlotTitle = "CD4+ T cell: Chr X or Chr Y responsive", myWidth=2.25, myHeight=2.25, pointsCol = myData$model, demingBehind = TRUE)
+
+#some stats
+x.only.sig <- x_or_y_to_plot[x_or_y_to_plot$significance == "X-response only (146 genes)",]
+y.only.sig <- x_or_y_to_plot[x_or_y_to_plot$significance == "Y-response only (66 genes)",]
+both.sig <- x_or_y_to_plot[x_or_y_to_plot$significance == "Both (55 genes)",]
+
+cor.test(x.only.sig$log2FoldChange.x, x.only.sig$log2FoldChange.y)$p.value
+cor.test(y.only.sig$log2FoldChange.x, y.only.sig$log2FoldChange.y)$p.value
+cor.test(both.sig$log2FoldChange.x, both.sig$log2FoldChange.y)$p.value
+
+
+```
+
+#X vs. Y responsive Venn diagram
+```{r}
+x_y.auto <- list(x.response.sig.auto$Gene, y.response.sig.auto$Gene)
+names(x_y.auto) <- c("Chr X responsive", "Chr Y responsive")
+pdf(file = "Figures/cd4.x_vs_y_autosomal_venn.pdf", width = 4, height = 3)
+plot(euler(x_y.auto), quantities = TRUE)
+dev.off()
+
+```
+
+#Compare all samples model ("full model") vs. Y-present model
+```{r}
+#Y-response, comparing model using all samples versus model with just Y karyotypes
+all.y.present.xresponse <- merge(x.response.auto, y.present.x.response.auto, by = "Gene")
+all.y.present.yresponse <- merge(y.response.auto, y.present.y.response.auto, by = "Gene")
+
+cor.test(all.y.present.xresponse$log2FoldChange.x, all.y.present.xresponse$log2FoldChange.y, method = "pearson")
+cor.test(all.y.present.yresponse$log2FoldChange.x, all.y.present.yresponse$log2FoldChange.y, method = "pearson")
+
+all.y.present.xresponseSig <- merge(x.response.sig.auto, y.present.x.response.auto, by = "Gene")
+all.y.present.yresponseSig <- merge(y.response.sig.auto, y.present.y.response.auto, by = "Gene")
+
+cor.test(all.y.present.xresponseSig$log2FoldChange.x, all.y.present.xresponseSig$log2FoldChange.y, method = "pearson")
+cor.test(all.y.present.yresponseSig$log2FoldChange.x, all.y.present.yresponseSig$log2FoldChange.y, method = "pearson")
+
+#remove OVCH1-AS1 outlier for plotting
+all.y.present.xresponse_to_plot <- all.y.present.xresponse[!all.y.present.xresponse$Gene == "OVCH1-AS1",]
+all.y.present.yresponse_to_plot <- all.y.present.yresponse[!all.y.present.yresponse$Gene %in% c("OVCH1-AS1", "HIST2H2AA3"),]
+all.y.present.xresponseSig_to_plot <- all.y.present.xresponseSig[!all.y.present.xresponseSig$Gene == "OVCH1-AS1",]
+all.y.present.yresponseSig_to_plot <- all.y.present.yresponseSig[!all.y.present.yresponseSig$Gene == "OVCH1-AS1",]
+
+cor.test(all.y.present.xresponse_to_plot$log2FoldChange.x, all.y.present.xresponse_to_plot$log2FoldChange.y)$p.value
+cor.test(all.y.present.yresponse_to_plot$log2FoldChange.x, all.y.present.yresponse_to_plot$log2FoldChange.y)$p.value
+
+cor.test(all.y.present.xresponseSig_to_plot$log2FoldChange.x, all.y.present.xresponseSig_to_plot$log2FoldChange.y)$p.value
+cor.test(all.y.present.yresponseSig_to_plot$log2FoldChange.x, all.y.present.yresponseSig_to_plot$log2FoldChange.y)$p.value
+
+
+##Deming confidence intervals
+source("/Rfunctions/Function_makeSymmetric_X_Y.R")
+source("/Rfunctions/Function_getMaxMin.R")
+source("/Rfunctions/Function_paper2_corrPlot_deming_20230419.R")
+
+###significantly responsive genes
+myData <- all.y.present.xresponseSig_to_plot[,c("Gene","log2FoldChange.x", "lfcSE.x", "padj.x", "log2FoldChange.y", "lfcSE.y", "padj.y")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_err(myData, myTitle = "Figures/cd4.full_vs_Ypresent_model_XresponseAutoSigGenes_deming_err.pdf", myXlab = "Full model, log2FC per Chr X", myYlab = ">1 Y model, log2FC per Chr X", myPlotTitle = "CD4+ T cell: Full model vs. >1 Y model", myWidth=2.25, myHeight=2.25, demingBehind = TRUE)
+
+
+myData <- all.y.present.yresponseSig_to_plot[,c("Gene","log2FoldChange.x", "lfcSE.x", "padj.x", "log2FoldChange.y", "lfcSE.y", "padj.y")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_err(myData, myTitle = "Figures/cd4.full_vs_Ypresent_model_YresponseAutoSigGenes_deming_err.pdf", myXlab = "Full model, log2FC per Chr Y", myYlab = ">1 Y model, log2FC per Chr Y", myPlotTitle = "CD4+ T cell: Full model vs. >1 Y model", myWidth=2.25, myHeight=2.25, demingBehind = TRUE)
+
+###all expressed genes
+myData <- all.y.present.xresponse_to_plot[,c("Gene","log2FoldChange.x", "lfcSE.x", "padj.x", "log2FoldChange.y", "lfcSE.y", "padj.y")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_err(myData, myTitle = "Figures/cd4.full_vs_Ypresent_model_XresponseAutoGenes_deming_err.pdf", myXlab = "Full model, log2FC per Chr X", myYlab = ">1 Y model, log2FC per Chr X", myPlotTitle = "CD4+ T cell: Full model vs. >1 Y model", myWidth=2.25, myHeight=2.25, demingBehind = TRUE)
+
+
+myData <- all.y.present.yresponse_to_plot[,c("Gene","log2FoldChange.x", "lfcSE.x", "padj.x", "log2FoldChange.y", "lfcSE.y", "padj.y")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_err(myData, myTitle = "Figures/cd4.full_vs_Ypresent_model_YresponseAutoGenes_deming_err.pdf", myXlab = "Full model, log2FC per Chr Y", myYlab = ">1 Y model, log2FC per Chr Y", myPlotTitle = "CD4+ T cell: Full model vs. >1 Y model", myWidth=2.25, myHeight=2.25, demingBehind = TRUE)
+
+```
+
+####Compare all samples model ("full model") vs. Y-absent ("no Y") model
+```{r}
+all.y.absent.xresponse <- merge(x.response.auto, y.absent.response.auto, by = "Gene")
+cor.test(all.y.absent.xresponse$log2FoldChange.x, all.y.absent.xresponse$log2FoldChange.y, method = "pearson")
+
+all.y.absent.xresponseSig <- merge(x.response.sig.auto, y.absent.response.auto, by = "Gene")
+cor.test(all.y.absent.xresponseSig$log2FoldChange.x, all.y.absent.xresponseSig$log2FoldChange.y, method = "pearson")
+
+#remove OVCH1-AS1 for plotting
+all.y.absent.xresponse_to_plot <- all.y.absent.xresponse[!all.y.absent.xresponse$Gene == "OVCH1-AS1",]
+cor.test(all.y.absent.xresponse_to_plot$log2FoldChange.x, all.y.absent.xresponse_to_plot$log2FoldChange.y, method = "pearson")$p.value
+
+all.y.absent.xresponseSig_to_plot <- all.y.absent.xresponseSig[!all.y.absent.xresponseSig$Gene == "OVCH1-AS1",]
+
+##Deming confidence intervals
+source("/sca-immune/Rfunctions/Function_makeSymmetric_X_Y.R")
+source("/sca-immune/Rfunctions/Function_getMaxMin.R")
+source("/sca-immune/Rfunctions/Function_paper2_corrPlot_deming_20230419.R")
+
+###significantly Chr X responsive genes
+myData <- all.y.absent.xresponseSig_to_plot[,c("Gene","log2FoldChange.x", "lfcSE.x", "padj.x", "log2FoldChange.y", "lfcSE.y", "padj.y")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_err(myData, myTitle = "Figures/cd4.full_vs_y.absent_model_XresponseSigAutoGeness_deming_err.pdf", myXlab = "Full model, log2FC per Chr X", myYlab = "no Y model, log2FC per Chr X", myPlotTitle = "CD4+ T cell: Full model vs. no Y model", myWidth=2.25, myHeight=2.25, demingBehind = TRUE)
+
+###all autosomal expressed genes
+myData <- all.y.absent.xresponse_to_plot[,c("Gene","log2FoldChange.x", "lfcSE.x", "padj.x", "log2FoldChange.y", "lfcSE.y", "padj.y")]
+colnames(myData) <- c("Gene","x","x_err","x_padj", "y", "y_err", "y_padj")
+paper2_corrPlot_deming_err(myData, myTitle = "Figures/cd4.full_vs_y.absent_model_XresponseAutoGeness_deming_err.pdf", myXlab = "Full model, log2FC per Chr X", myYlab = "no Y model, log2FC per Chr X", myPlotTitle = "CD4+ T cell: Full model vs. no Y model", myWidth=2.25, myHeight=2.25, demingBehind = TRUE)
+
+```
+
+
