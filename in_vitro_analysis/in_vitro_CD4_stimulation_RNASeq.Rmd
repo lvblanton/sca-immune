@@ -1,0 +1,346 @@
+---
+title: "HCD4.234 rna-seq"
+author: "Laura Blanton"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Setup annotations
+```{r}
+#annotation with v107 info
+geneAnno <- read.delim(file="/sca-immune/Annotations/geneAnno_proteinCoding_lncRNA_v107_20221021.txt", stringsAsFactors = FALSE)[,c(2,1,3:6,8,14,9)]
+colnames(geneAnno)[c(1,4,5,6)] <- c("Gene","chr","start","stop")
+geneAnno <- geneAnno[! duplicated(geneAnno$gene_name.107) & ! geneAnno$gene_name.107 %in% c("") & ! duplicated(geneAnno$Gene),]
+
+geneAnno_x <- geneAnno[geneAnno$chr == "chrX",]
+geneAnno_y <- geneAnno[geneAnno$chr == "chrY",]
+X_genes_all <-as.character(geneAnno_x$Gene)
+Y_genes_all <-as.character(geneAnno_y$Gene)
+sexChrom_genes <- c(X_genes_all,Y_genes_all)
+PAR1_genes <- geneAnno_x[geneAnno_x$start < 2691188,]$Gene
+PAR2_genes <- c("SPRY3","VAMP7","IL9R","WASH6P")
+PAR_genes_all <- c(PAR1_genes,PAR2_genes)
+NPX_genes <- X_genes_all[! X_genes_all %in% PAR_genes_all]
+NPY_genes <- Y_genes_all[! Y_genes_all %in% PAR_genes_all]
+autosome_genes <- geneAnno[! geneAnno$chr.107 %in% c("chrX","chrY"),"Gene"]
+
+```
+
+#annotation and metadata
+```{r}
+library("tximport")
+library("readr")
+
+setwd("") #set working directory
+dir <- "/sca-immune/in_vitro_analysis/" #set path to kallisto results directories 
+
+#Set up annotation
+annofile <-read.delim(file="/sca-immune/Annotations/annotation_with_ERCC.txt" ,sep = " ")
+tx2gene <- data.frame("TXNAME"=annofile$transcript_id, "GENEID"=annofile$gene_name)
+
+#Set up file lists and metadata
+samples <- read.table(file.path(dir, "cd4_in_vitro_metadata.csv"), header = TRUE)
+hcd4.files <- file.path(dir, "kallisto_results", samples$Kallisto_directory, "abundance.tsv")
+names(hcd4.files) <- samples$Kallisto_directory
+
+#Set up metadata
+colData <- read.csv("/sca-immune/in_vitro_analysis/cd4_in_vitro_metadata.csv",sep="\t", row.names="SampleID")
+
+```
+
+#tximport
+```{r}
+#####This is code for importing kallisto results generated from raw fastq files; the raw fastq files are accessible at dbGaP accession # phs002481. From the raw data, run the following kallisto command: 
+# kallisto quant -i KALLISTO_INDEX_FILE -t 16 --bias --plaintext -o  /kallisto_OUTPUT_FOLDER/sampleName/ file1fastq.gz file2fastq.gz 
+
+all(file.exists(hcd4.files))
+hcd4.txi <- tximport(hcd4.files, type = "kallisto", tx2gene = tx2gene)
+
+samples_unstim <- subset(samples, samples$Treatment == "unstim")
+files_unstim <- file.path(dir, "kallisto_results", samples_unstim$Kallisto_directory, "abundance.tsv")
+names(files_unstim) <- samples_unstim$Kallisto_directory
+all(file.exists(files_unstim))
+unstim.txi <- tximport(files_unstim, type = "kallisto", tx2gene = tx2gene)
+
+samples_stim <- subset(samples, samples$Treatment == "stim")
+files_stim <- file.path(dir, "kallisto_results", samples_stim$Kallisto_directory, "abundance.tsv")
+names(files_stim) <- samples_stim$Kallisto_directory
+all(file.exists(files_stim))
+stim.txi <- tximport(files_stim, type = "kallisto", tx2gene = tx2gene)
+
+```
+
+#find expressed genes
+```{r}
+source(file = "/sca-immune/Rfunctions/Function_tpm1_genes_xx_xy_median_221108.R")
+
+XX_sample_names <- colData[colData$Sex == "F", "Kallisto_directory"]
+XY_sample_names <- colData[colData$Sex == "M", "Kallisto_directory"]
+
+hcd4_expressed <- tpm1_genes_xx_xy_median(tximport_file = hcd4.txi, XX_samples = XX_sample_names, XY_samples = XY_sample_names)
+expressedGenes <- hcd4_expressed$expressedGenes
+#save(expressedGenes, file="hcd4_expressed.rda")
+
+```
+
+#deseq2
+```{r}
+library(DESeq2)
+
+colnames(unstim.txi$abundance) <- NULL
+colnames(unstim.txi$counts) <- NULL
+colnames(unstim.txi$length) <- NULL
+
+colData.unstim <- colData[colData$Treatment == "unstim",]
+unstim.dds <- DESeqDataSetFromTximport(unstim.txi, colData=colData.unstim, design=~ X_count + Y_count + Experiment)
+unstim.dds <- DESeq(unstim.dds)
+
+colnames(stim.txi$abundance) <- NULL
+colnames(stim.txi$counts) <- NULL
+colnames(stim.txi$length) <- NULL
+
+colData.stim <- colData[colData$Treatment == "stim",]
+stim.dds <- DESeqDataSetFromTximport(stim.txi, colData=colData.stim, design=~ X_count + Y_count + Experiment)
+stim.dds <- DESeq(stim.dds)
+
+```
+#find significant DE genes
+```{r}
+source("/sca-immune/Rfunctions/Function_GenomeWideResponse.R")
+source("/sca-immune/Rfunctions/Function_SignificantResponse.R")
+source("/sca-immune/Rfunctions/Function_AutosomalResponse_221108.R")
+
+####CD4+ T cells: Look at significantly X-responsive genes####
+#####Responsive to X dosage
+x.response.stim <- GenomeWideResponse(stim.dds, "X_count", expressedGenes) 
+x.response.stim.sig <- SignificantResponse(stim.dds, "X_count", expressedGenes)
+x.response.stim.auto <- AutosomalResponse(x.response.stim)
+x.response.stim.sig.auto <- AutosomalResponse(x.response.stim.sig)
+
+x.response.unstim <- GenomeWideResponse(unstim.dds, "X_count", expressedGenes) 
+x.response.unstim.sig <- SignificantResponse(unstim.dds, "X_count", expressedGenes)
+x.response.unstim.auto <- AutosomalResponse(x.response.unstim)
+x.response.unstim.sig.auto <- AutosomalResponse(x.response.unstim.sig)
+
+#write.table(x.response.stim.auto, "cd4_invitro_xresponse_stimulated_autosomal.txt", quote = F, sep = "\t")
+#write.table(x.response.unstim.auto, "cd4_invitro_xresponse_unstimulated_autosomal.txt", quote = F, sep = "\t")
+
+```
+
+
+#Volcano plots
+```{r}
+#Plot X-response -- volcano
+examples <- c("IL18BP", "E2F1")
+
+x.response.unstim.auto$significant <- "Not significant"
+x.response.unstim.auto$significant[x.response.unstim.auto$padj < 0.05] <- "Significant response"
+x.response.unstim.auto$significant[x.response.unstim.auto$Gene %in% examples] <- "Example gene"
+
+x.response.unstim.auto$delabel <- NA
+x.response.unstim.auto$delabel[x.response.unstim.auto$significant == "Example gene"] <- x.response.unstim.auto$Gene[x.response.unstim.auto$significant == "Example gene"]
+x.response.unstim.auto$delabel[x.response.unstim.auto$significant != "Not significant"] <- x.response.unstim.auto$Gene[x.response.unstim.auto$significant != "Not significant"]
+
+x.response.unstim.auto.plot <- x.response.unstim.auto[!x.response.unstim.auto$Gene == "OR2I1P",]
+
+library(ggrepel)
+p <- ggplot(data = x.response.unstim.auto.plot, aes(x = log2FoldChange, y = -log10(padj), col=significant, label = delabel)) +
+  geom_point() +
+  scale_color_manual(values=c("#D55E00", "#40404040", "#E69F0080")) +
+  geom_text_repel(fontface = "italic", size = 2.5, col = "#E69F00") +
+  labs(title = "Unstimulated CD4+ T cells in vitro: autosomal response to Chr X", x="log2FC per Chr X", y = "-log10(FDR)") +
+  geom_vline(xintercept=0, col="black") +
+  geom_hline(yintercept=0, col="black")+
+  xlim(-6,4)+
+  ylim(NA, 5)+
+  theme_minimal(base_size = 7)+
+  theme(legend.position="none")
+p
+ggsave("Figures/hcd4_autosomal_ChrX_unstim_volcano.pdf", p, width = 2.5, height = 2.75)
+
+#X response, stimulated
+examples <- c("IL15", "B3GNT5")
+x.response.stim.auto$significant <- "Not significant"
+x.response.stim.auto$significant[x.response.stim.auto$padj < 0.05] <- "Significant response"
+x.response.stim.auto$significant[x.response.stim.auto$Gene %in% examples] <- "Example gene"
+
+x.response.stim.auto$delabel <- NA
+x.response.stim.auto$delabel[x.response.stim.auto$significant == "Example gene"] <- x.response.stim.auto$Gene[x.response.stim.auto$significant == "Example gene"]
+
+x.response.stim.auto$delabel[x.response.stim.auto$significant != "Not significant"] <- x.response.stim.auto$Gene[x.response.stim.auto$significant != "Not significant"]
+
+library(ggrepel)
+p <- ggplot(data = x.response.stim.auto, aes(x = log2FoldChange, y = -log10(padj), col=significant, label = delabel)) +
+  geom_point() +
+  scale_color_manual(values=c("#D55E00", "#40404040", "#E69F0080")) +
+  geom_text_repel(fontface = "italic", size = 2.5, col = "#E69F00") +
+  labs(title = "Stimulated CD4+ T cells in vitro: autosomal response to Chr X", x="log2FC per Chr X", y = "-log10(FDR)") +
+  geom_vline(xintercept=0, col="black") +
+  geom_hline(yintercept=0, col="black")+
+  xlim(-6,4)+
+  ylim(NA, 5)+
+  theme_minimal(base_size = 7)+
+  theme(legend.position="none")
+p
+ggsave("Figures/hcd4_autosomal_ChrX_stim_volcano.pdf", p, width = 2.5, height = 2.75)
+
+```
+
+
+
+#individual gene plots
+```{r}
+source("/sca-immune/Rfunctions/Function_ggGenePlot_regLine_xcount_auto_2.R")
+source("/sca-immune/Rfunctions/Function_ggGenePlot_regLine_ycount_auto.R")
+myPath <- "/lab/solexa_page/laura/in_vitro/HCD4.234-rnaseq"
+myOrange <- "#d95f02"
+myOrange_light <- "#d95f0220"
+myPurple <- "#7570B3"
+myPurple_light <- "#7570B320"
+
+
+norm.cts <- counts(hcd4.dds, normalized = TRUE)
+norm.cts <- norm.cts[rownames(norm.cts) %in% x.response$Gene,]
+norm.cts.meta <- merge(colData, t(norm.cts), by = 0)
+norm.cts.meta.df <- data.frame(norm.cts.meta)
+norm.cts.meta.df$Karyotype.treatment <- paste(norm.cts.meta.df$Karyotype, norm.cts.meta.df$Treatment, sep="_")
+norm.cts.meta.df$Xcount.treatment <- paste(norm.cts.meta.df$X_count, norm.cts.meta.df$Treatment, sep="_")
+
+unstim.norm.cts <- counts(unstim.dds, normalized=TRUE)
+unstim.norm.cts <- unstim.norm.cts[rownames(unstim.norm.cts) %in% x.response.unstim$Gene,]
+unstim.norm.cts.meta <- merge(colData.unstim, t(unstim.norm.cts), by = 0)
+unstim.norm.cts.meta.df <- data.frame(unstim.norm.cts.meta)
+
+ggGenePlot_regLine_xcount_auto_2("E2F1", unstim.norm.cts.meta.df, normBy = 1000, prefix = "Unstim", myWidth=1.25, myHeight=1.25)
+
+
+stim.norm.cts <- counts(stim.dds, normalized=TRUE)
+stim.norm.cts <- stim.norm.cts[rownames(stim.norm.cts) %in% x.response.stim$Gene,]
+stim.norm.cts.meta <- merge(colData.stim, t(stim.norm.cts), by = 0)
+stim.norm.cts.meta.df <- data.frame(stim.norm.cts.meta)
+
+ggGenePlot_regLine_xcount_auto_2("IFNG", stim.norm.cts.meta.df, normBy = 1000, prefix = "Stim", myWidth=1.25, myHeight=1.25)
+
+norm.cts.meta.df$Treatment <- factor(norm.cts.meta.df$Treatment, levels=c("unstim", "stim"))
+p <- ggplot(norm.cts.meta.df, aes(x=Treatment, y=IL17F)) +
+  geom_violin(trim=FALSE, ) + 
+  geom_jitter()+
+  stat_summary(fun.data=mean_sdl, geom="pointrange", color="black") +
+  scale_y_continuous(trans='log10') +
+  labs( 
+      x= NULL,
+      y= "Normalized read counts",
+      title = "IL17F"
+      ) +
+    theme_classic(base_size = 7) +
+    theme(
+      plot.title = ggtext::element_markdown(),
+      axis.text = element_text(color = "black")
+      )
+ggsave("Figures/cd4_IL17F_unstim_v_stim_norm_cts.pdf", p, width = 1.5, height = 1.25)
+
+
+
+```
+
+#load GSEA
+```{r}
+library(dplyr)
+library(fgsea)
+library(data.table)
+library(ggplot2)
+
+#load Hallmark gene sets from MSigDB (https://www.gsea-msigdb.org/gsea/msigdb/human/collections.jsp#H) 
+hallmark_geneSet <- gmtPathways(paste0(myPath, "/sca-immune/Gene_set_enrichment/h.all.v7.1.symbols.gmt"))
+
+stim.Xranks <- x.response.stim.auto$stat
+names(stim.Xranks) <- x.response.stim.auto$Gene
+ranks <- na.omit(stim.Xranks)
+
+unstim.Xranks <- x.response.unstim.auto$stat
+names(unstim.Xranks) <- x.response.unstim.auto$Gene
+ranks <- na.omit(unstim.Xranks)
+
+
+fgseaRes_Xhallmarkstim <- fgsea(pathways = hallmark_geneSet, stats = stim.Xranks, minSize = 15, maxSize = 20000)
+fwrite(fgseaRes_Xhallmarkstim, file="fgseaRes_hcd4.stim_Xresponse_tstat_hallmark.txt", sep="\t", sep2=c("", " ", ""))
+
+fgseaRes_Xhallmark.unstim <- fgsea(pathways = hallmark_geneSet, stats = unstim.Xranks, minSize = 15, maxSize = 20000)
+fwrite(fgseaRes_Xhallmark.unstim, file="fgseaRes_hcd4.unstim_Xresponse_tstat_hallmark.txt", sep="\t", sep2=c("", " ", ""))
+
+```
+
+#GSEA heatmap
+```{r}
+fgseaRes_Xhallmark.stim <- read.table("/sca-immune/in_vitro_analysis/fgseaRes_hcd4.stim_Xresponse_tstat_hallmark.txt", header = T, sep = "\t")
+fgseaRes_Xhallmark.unstim <- read.table("/sca-immune/in_vitro_analysis/fgseaRes_hcd4.unstim_Xresponse_tstat_hallmark.txt", header = T, sep = "\t")
+
+
+library(purrr)
+gseamodels <- list(fgseaRes_Xhallmark.unstim, fgseaRes_Xhallmark.stim)
+
+gseamodels <- gseamodels %>% reduce(full_join, by = 'pathway')
+gseamodels.nes <- gseamodels[, c("pathway", "NES.x", "NES.y")]
+colnames(gseamodels.nes) <- c("pathway", "Unstimulated", "Stimulated")
+rownames(gseamodels.nes) <- gseamodels.nes$pathway
+gseamodels.nes <- gseamodels.nes[,-1]
+gseamodels.nes <- na.omit(gseamodels.nes)
+
+gseamodels.padj <- gseamodels[, c("pathway", "padj.x", "padj.y")]
+colnames(gseamodels.padj) <-c("pathway", "Unstimulated", "Stimulated")
+rownames(gseamodels.padj) <- gseamodels.padj$pathway
+gseamodels.padj <- gseamodels.padj[,-1]
+gseamodels.padj <- na.omit(gseamodels.padj)
+
+library(ComplexHeatmap)
+library(circlize)
+col_fun = colorRamp2(c(-2.5, 0, 2.5), c("#1E8BE5", "white", "#EFC036"))
+col_fun(seq(-2.5, 2.5))
+pdf(file = "Figures/hcd4._all_pathways_NES_heatmap.pdf", width = 5.5, height = 8)
+Heatmap(gseamodels.nes, column_names_rot = 45, col = col_fun, column_title = "CD4+ T cells", cluster_columns = FALSE, cell_fun = function(j, i, x, y, w, h, fill) {
+    if(gseamodels.padj[i, j] < 0.001) {
+        grid.text("***", x, y)
+    } else if(gseamodels.padj[i, j] < 0.01) {
+        grid.text("**", x, y)
+    } else if(gseamodels.padj[i, j] < 0.05) {
+        grid.text("*", x, y)
+    }
+})
+dev.off()
+
+
+#compare with in vivo CD4+ 
+cd4.x.fgsea <- read.table("/sca-immune/Gene_set_enrichment/fgseaRes_cd4_Xresponse_tstat_hallmark.txt", header = T, sep = "\t")
+
+vvv.gsea <- list(cd4.x.fgsea, fgseaRes_Xhallmark.unstim, fgseaRes_Xhallmark.stim)
+vvv.gsea <- vvv.gsea %>% reduce(full_join, by = 'pathway')
+vvv.gsea.nes <- vvv.gsea[, c("pathway", "NES.x", "NES.y", "NES")]
+colnames(vvv.gsea.nes) <- c("pathway", "in vivo", "in vitro: unstimulated", "in vitro: stimulated")
+rownames(vvv.gsea.nes) <- vvv.gsea.nes$pathway
+vvv.gsea.nes <- vvv.gsea.nes[,-1]
+vvv.gsea.nes <- na.omit(vvv.gsea.nes)
+
+vvv.gsea.padj <- vvv.gsea[, c("pathway", "padj.x", "padj.y", "padj")]
+colnames(vvv.gsea.padj) <-c("pathway", "in vivo", "in vitro: unstimulated", "in vitro: stimulated")
+rownames(vvv.gsea.padj) <- vvv.gsea.padj$pathway
+vvv.gsea.padj <- vvv.gsea.padj[,-1]
+vvv.gsea.padj <- na.omit(vvv.gsea.padj)
+
+pdf(file = "Figures/hcd4_vs_invivo_all_pathways_NES_heatmap.pdf", width = 6, height = 9)
+Heatmap(vvv.gsea.nes, column_names_rot = 45, col = col_fun, column_title = "CD4+ T cells", cluster_columns = FALSE, cell_fun = function(j, i, x, y, w, h, fill) {
+    if(vvv.gsea.padj[i, j] < 0.001) {
+        grid.text("***", x, y)
+    } else if(vvv.gsea.padj[i, j] < 0.01) {
+        grid.text("**", x, y)
+    } else if(vvv.gsea.padj[i, j] < 0.05) {
+        grid.text("*", x, y)
+    }
+})
+dev.off()
+
+```
+
+
